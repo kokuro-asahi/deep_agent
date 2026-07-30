@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Deep Agents 测试台</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <aside class="sidebar">
+        <header class="brand">
+          <div class="mark">DA</div>
+          <div>
+            <h1>Deep Agents</h1>
+            <p>接口测试台</p>
+          </div>
+        </header>
+
+        <section class="panel">
+          <label>
+            <span>User ID</span>
+            <input id="userId" value="user_test" autocomplete="off" />
+          </label>
+          <label>
+            <span>Thread ID</span>
+            <input id="threadId" placeholder="留空自动创建" autocomplete="off" />
+          </label>
+          <label>
+            <span>Agent Role</span>
+            <textarea id="agentRole" rows="4">你是创作平台的智能助手。回答默认使用中文。</textarea>
+          </label>
+          <label class="toggle">
+            <input id="streamMode" type="checkbox" checked />
+            <span>流式响应</span>
+          </label>
+        </section>
+
+        <section class="panel actions">
+          <button id="newThread" type="button">新会话</button>
+          <button id="loadHistory" type="button">读取历史</button>
+          <button id="clearContext" type="button">清除上下文</button>
+        </section>
+
+        <section class="panel meta">
+          <div>
+            <span>Run</span>
+            <strong id="runId">-</strong>
+          </div>
+          <div>
+            <span>Status</span>
+            <strong id="status">idle</strong>
+          </div>
+        </section>
+      </aside>
+
+      <section class="workspace">
+        <div id="messages" class="messages"></div>
+
+        <form id="composer" class="composer">
+          <textarea id="prompt" rows="3" placeholder="输入测试消息"></textarea>
+          <div class="composer-row">
+            <input id="imageUrl" placeholder="图片 URL，可选" autocomplete="off" />
+            <button id="send" type="submit">发送</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
