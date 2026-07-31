@@ -20,7 +20,6 @@ class Settings:
     pg_port: str = getenv("PG_PORT", "5432")
     agent_backend: str = getenv("AGENT_BACKEND", "echo")
     agent_model: str = getenv("AGENT_MODEL") or getenv("MODEL", "qwen-plus")
-    agent_system_prompt: str = getenv("AGENT_SYSTEM_PROMPT", "你是创作平台的智能助手。")
     openai_api_key: str | None = getenv("OPENAI_API_KEY") or getenv("DASHSCOPE_API_KEY")
     openai_base_url: str | None = getenv("OPENAI_BASE_URL") or getenv("BASE_URL")
     public_base_url: str = getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000")

@@ -28,7 +28,12 @@
           </label>
           <label>
             <span>Agent Role</span>
-            <textarea id="agentRole" rows="4">你是创作平台的智能助手。回答默认使用中文。</textarea>
+            <select id="agentRole">
+              <option value="director">director</option>
+              <option value="cinematographer">cinematographer</option>
+              <option value="art_director">art_director</option>
+              <option value="screenwriter">screenwriter</option>
+            </select>
           </label>
           <label class="toggle">
             <input id="streamMode" type="checkbox" checked />

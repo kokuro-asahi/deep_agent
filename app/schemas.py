@@ -1,7 +1,9 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.role_prompts import SUPPORTED_AGENT_ROLES, is_supported_agent_role
 
 
 class TextContent(BaseModel):
@@ -28,6 +30,19 @@ class RunRequest(BaseModel):
     content: list[ContentBlock] = Field(min_length=1)
     agent_role: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("agent_role")
+    @classmethod
+    def validate_agent_role(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        role = value.strip()
+        if not role:
+            return None
+        if not is_supported_agent_role(role):
+            allowed = "、".join(SUPPORTED_AGENT_ROLES)
+            raise ValueError(f"agent_role must be one of: {allowed}")
+        return role
 
     @model_validator(mode="after")
     def require_role_for_new_thread(self) -> "RunRequest":

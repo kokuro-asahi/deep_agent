@@ -128,21 +128,22 @@ class BusinessStore:
                 (user_id, client_message_id),
             ).fetchone()
 
-    def get_or_create_thread(self, user_id: str, thread_id: str | None, agent_role: str | None) -> dict[str, Any]:
-        if thread_id:
-            with self.connection() as conn:
-                row = conn.execute(
-                    """
-                    SELECT user_id, thread_id, checkpoint_thread_id, agent_role, context_version, last_sequence
-                    FROM agent_threads
-                    WHERE user_id = %s AND thread_id = %s
-                    """,
-                    (user_id, thread_id),
-                ).fetchone()
-                if row:
-                    return row
+    def get_thread(self, user_id: str, thread_id: str) -> dict[str, Any] | None:
+        with self.connection() as conn:
+            return conn.execute(
+                """
+                SELECT user_id, thread_id, checkpoint_thread_id, agent_role, context_version, last_sequence
+                FROM agent_threads
+                WHERE user_id = %s AND thread_id = %s
+                """,
+                (user_id, thread_id),
+            ).fetchone()
 
-        new_thread_id = thread_id or f"thread_{uuid4().hex}"
+    def get_or_create_thread(self, user_id: str, thread_id: str | None, agent_role: str | None) -> dict[str, Any] | None:
+        if thread_id:
+            return self.get_thread(user_id, thread_id)
+
+        new_thread_id = f"thread_{uuid4().hex}"
         checkpoint_thread_id = self.checkpoint_thread_id(user_id, new_thread_id, 1)
         with self.connection() as conn:
             row = conn.execute(

@@ -8,6 +8,7 @@ from fastapi import HTTPException
 from app.agent import AgentClient
 from app.business_store import business_store
 from app.config import get_settings
+from app.role_prompts import load_role_prompt
 from app.runtime import runtime
 from app.schemas import (
     ContextResetResponse,
@@ -22,6 +23,13 @@ from app.usage import add_usage, empty_usage
 class RunService:
     def __init__(self):
         self.agent = AgentClient(get_settings())
+
+    async def validate_thread_exists(self, request: RunRequest) -> None:
+        if not request.thread_id:
+            return
+        thread = await to_thread(business_store.get_thread, request.user_id, request.thread_id)
+        if not thread:
+            raise HTTPException(status_code=404, detail="thread not found")
 
     async def run_json(self, request: RunRequest) -> RunResponse:
         existing_run = await to_thread(
@@ -38,8 +46,11 @@ class RunService:
             request.thread_id,
             request.agent_role,
         )
+        if not thread:
+            raise HTTPException(status_code=404, detail="thread not found")
         thread_id = thread["thread_id"]
         context_version = int(thread["context_version"])
+        agent_role = thread.get("agent_role")
         run_id = f"run_{uuid4().hex}"
         sequence = await to_thread(business_store.next_sequence, request.user_id, thread_id)
         content = _content(request)
@@ -63,7 +74,7 @@ class RunService:
         )
         try:
             result = await self.agent.ainvoke(
-                [_to_model_message("user", content)],
+                _model_messages(agent_role, content),
                 request.user_id,
                 thread_id,
                 context_version,
@@ -121,9 +132,12 @@ class RunService:
             request.thread_id,
             request.agent_role,
         )
+        if not thread:
+            raise HTTPException(status_code=404, detail="thread not found")
         run_id = f"run_{uuid4().hex}"
         thread_id = thread["thread_id"]
         context_version = int(thread["context_version"])
+        agent_role = thread.get("agent_role")
         sequence = await to_thread(business_store.next_sequence, request.user_id, thread_id)
         content = _content(request)
         await to_thread(
@@ -152,7 +166,7 @@ class RunService:
         usage = empty_usage()
         try:
             async for event in self.agent.astream_events(
-                [_to_model_message("user", content)],
+                _model_messages(agent_role, content),
                 request.user_id,
                 thread_id,
                 context_version,
@@ -237,6 +251,16 @@ def _to_model_message(role: str, content: list[dict[str, Any]]) -> dict[str, Any
         elif block.get("type") == "image":
             blocks.append({"type": "image_url", "image_url": {"url": block.get("url", "")}})
     return {"role": role, "content": blocks}
+
+
+def _model_messages(agent_role: str | None, content: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    messages: list[dict[str, Any]] = []
+    if agent_role:
+        prompt = load_role_prompt(agent_role)
+        if prompt:
+            messages.append({"role": "system", "content": prompt})
+    messages.append(_to_model_message("user", content))
+    return messages
 
 
 def _content(request: RunRequest) -> list[dict[str, Any]]:

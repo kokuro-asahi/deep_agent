@@ -29,7 +29,6 @@ class AgentRuntime:
             model=self.create_model(),
             tools=get_agent_tools(),
             checkpointer=self.checkpointer,
-            system_prompt=self.settings.agent_system_prompt,
         )
 
     def stop(self) -> None:

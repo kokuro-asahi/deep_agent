@@ -5,6 +5,9 @@ Phase-one backend for the Agent interface described in the attached API and tech
 ## Scope
 
 - `POST /v1/runs` for text/image conversations, streaming or JSON.
+  - When `thread_id` is empty, `agent_role` is required and must be one of `director`, `cinematographer`, `art_director`, or `screenwriter`.
+  - When `thread_id` is provided, it must already exist; unknown threads return `404`.
+  - Role system prompts are loaded from `app/prompts/roles/*.md`.
 - `POST /v1/threads/{thread_id}/context` to clear future model context without deleting history.
 - `GET /v1/threads/{thread_id}/messages` for reverse chronological Q&A pagination.
 - Custom DeepAgents tools are registered from `app/tools.py`.

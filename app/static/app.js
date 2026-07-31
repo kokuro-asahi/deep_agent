@@ -131,7 +131,7 @@ function buildRunBody(text, imageUrl) {
   };
 
   if (!threadId) {
-    body.agent_role = els.agentRole.value.trim() || "你是创作平台的智能助手。";
+    body.agent_role = els.agentRole.value.trim();
   }
   return body;
 }

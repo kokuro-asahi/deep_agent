@@ -1,6 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
+from app.role_prompts import load_role_prompt
 from app.schemas import RunRequest
 from app.sse import encode_sse
 from app.usage import usage_from_messages
@@ -27,6 +28,16 @@ def test_agent_role_required_when_thread_id_is_missing():
         )
 
 
+def test_agent_role_must_be_supported():
+    with pytest.raises(ValidationError):
+        RunRequest(
+            user_id="user_001",
+            client_message_id="message_001",
+            agent_role="producer",
+            content=[{"type": "text", "text": "hi"}],
+        )
+
+
 def test_agent_role_not_required_for_existing_thread():
     request = RunRequest(
         user_id="user_001",
@@ -36,6 +47,23 @@ def test_agent_role_not_required_for_existing_thread():
     )
 
     assert request.thread_id == "thread_001"
+
+
+def test_supported_agent_role_is_accepted_for_new_thread():
+    request = RunRequest(
+        user_id="user_001",
+        client_message_id="message_001",
+        agent_role="director",
+        content=[{"type": "text", "text": "hi"}],
+    )
+
+    assert request.agent_role == "director"
+
+
+def test_role_prompt_loads_from_markdown_file():
+    prompt = load_role_prompt("director")
+
+    assert "电影导演" in prompt
 
 
 def test_usage_sums_multiple_model_messages_in_one_run():

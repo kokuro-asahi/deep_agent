@@ -12,6 +12,7 @@ router = APIRouter(prefix="/v1", tags=["runs"])
 async def create_run(request: RunRequest):
     service = RunService()
     if request.stream:
+        await service.validate_thread_exists(request)
         return StreamingResponse(
             stream_events(service.run_stream(request)),
             media_type="text/event-stream",
