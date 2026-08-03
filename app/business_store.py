@@ -7,6 +7,7 @@ from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from app.config import Settings, get_settings
+from app.retry import retry_sync
 
 
 class BusinessStore:
@@ -17,8 +18,15 @@ class BusinessStore:
     def start(self) -> None:
         if self.pool is not None:
             return
+        retry_sync(self._start_pool, attempts=3, initial_delay=0.5)
+
+    def _start_pool(self) -> None:
         self.pool = ConnectionPool(conninfo=self.database_uri(), kwargs={"row_factory": dict_row}, open=True)
-        self.setup()
+        try:
+            self.setup()
+        except Exception:
+            self.stop()
+            raise
 
     def stop(self) -> None:
         if self.pool is not None:
@@ -88,6 +96,56 @@ class BusinessStore:
                 )
                 """
             )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS api_request_logs (
+                    id BIGSERIAL PRIMARY KEY,
+                    request_id TEXT NOT NULL UNIQUE,
+                    run_id TEXT,
+                    user_id TEXT,
+                    thread_id TEXT,
+                    client_message_id TEXT,
+                    method TEXT NOT NULL,
+                    path TEXT NOT NULL,
+                    route TEXT,
+                    query_string TEXT,
+                    status TEXT NOT NULL,
+                    status_code INTEGER,
+                    duration_ms INTEGER,
+                    response_size_bytes INTEGER,
+                    client_host TEXT,
+                    user_agent TEXT,
+                    error JSONB,
+                    started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    completed_at TIMESTAMPTZ
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS agent_event_logs (
+                    id BIGSERIAL PRIMARY KEY,
+                    request_id TEXT,
+                    run_id TEXT,
+                    user_id TEXT,
+                    thread_id TEXT,
+                    client_message_id TEXT,
+                    event_type TEXT NOT NULL,
+                    event_name TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    duration_ms INTEGER,
+                    attempt INTEGER,
+                    input_summary JSONB,
+                    output_summary JSONB,
+                    error JSONB,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+                )
+                """
+            )
+            conn.execute("ALTER TABLE api_request_logs ADD COLUMN IF NOT EXISTS run_id TEXT")
+            conn.execute("ALTER TABLE api_request_logs ADD COLUMN IF NOT EXISTS user_id TEXT")
+            conn.execute("ALTER TABLE api_request_logs ADD COLUMN IF NOT EXISTS thread_id TEXT")
+            conn.execute("ALTER TABLE api_request_logs ADD COLUMN IF NOT EXISTS client_message_id TEXT")
             conn.execute("ALTER TABLE agent_messages ADD COLUMN IF NOT EXISTS message_order INTEGER NOT NULL DEFAULT 0")
             conn.execute(
                 """
@@ -114,6 +172,139 @@ class BusinessStore:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_agent_messages_thread ON agent_messages "
                 "(user_id, thread_id, sequence DESC)"
+            )
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_api_request_logs_started ON api_request_logs (started_at DESC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_api_request_logs_path ON api_request_logs (path, started_at DESC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_api_request_logs_status ON api_request_logs (status, started_at DESC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_api_request_logs_run ON api_request_logs (run_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_event_logs_request ON agent_event_logs (request_id, created_at ASC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_event_logs_run ON agent_event_logs (run_id, created_at ASC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_event_logs_thread ON agent_event_logs (user_id, thread_id, created_at ASC)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_event_logs_status ON agent_event_logs (status, created_at DESC)")
+            conn.commit()
+
+    def start_api_request_log(
+        self,
+        request_id: str,
+        method: str,
+        path: str,
+        route: str | None,
+        query_string: str,
+        client_host: str | None,
+        user_agent: str | None,
+    ) -> int:
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                INSERT INTO api_request_logs (
+                    request_id, method, path, route, query_string, status, client_host, user_agent
+                )
+                VALUES (%s, %s, %s, %s, %s, 'running', %s, %s)
+                RETURNING id
+                """,
+                (request_id, method, path, route, query_string, client_host, user_agent),
+            ).fetchone()
+            conn.commit()
+            return int(row["id"])
+
+    def complete_api_request_log(
+        self,
+        log_id: int,
+        status_code: int,
+        duration_ms: int,
+        response_size_bytes: int,
+        status: str,
+        error: dict[str, Any] | None,
+    ) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE api_request_logs
+                SET
+                    status = %s,
+                    status_code = %s,
+                    duration_ms = %s,
+                    response_size_bytes = %s,
+                    error = %s,
+                    completed_at = %s
+                WHERE id = %s
+                """,
+                (
+                    status,
+                    status_code,
+                    duration_ms,
+                    response_size_bytes,
+                    Jsonb(error) if error else None,
+                    datetime.now(timezone.utc),
+                    log_id,
+                ),
+            )
+            conn.commit()
+
+    def attach_api_request_context(
+        self,
+        request_id: str,
+        run_id: str | None,
+        user_id: str | None,
+        thread_id: str | None,
+        client_message_id: str | None,
+    ) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE api_request_logs
+                SET
+                    run_id = COALESCE(%s, run_id),
+                    user_id = COALESCE(%s, user_id),
+                    thread_id = COALESCE(%s, thread_id),
+                    client_message_id = COALESCE(%s, client_message_id)
+                WHERE request_id = %s
+                """,
+                (run_id, user_id, thread_id, client_message_id, request_id),
+            )
+            conn.commit()
+
+    def record_agent_event(
+        self,
+        request_id: str | None,
+        run_id: str | None,
+        user_id: str | None,
+        thread_id: str | None,
+        client_message_id: str | None,
+        event_type: str,
+        event_name: str,
+        status: str,
+        duration_ms: int | None = None,
+        attempt: int | None = None,
+        input_summary: dict[str, Any] | None = None,
+        output_summary: dict[str, Any] | None = None,
+        error: dict[str, Any] | None = None,
+    ) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO agent_event_logs (
+                    request_id, run_id, user_id, thread_id, client_message_id,
+                    event_type, event_name, status, duration_ms, attempt,
+                    input_summary, output_summary, error
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (
+                    request_id,
+                    run_id,
+                    user_id,
+                    thread_id,
+                    client_message_id,
+                    event_type,
+                    event_name,
+                    status,
+                    duration_ms,
+                    attempt,
+                    Jsonb(input_summary) if input_summary else None,
+                    Jsonb(output_summary) if output_summary else None,
+                    Jsonb(error) if error else None,
+                ),
             )
             conn.commit()
 

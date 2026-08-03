@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi import HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +9,8 @@ from pathlib import Path
 from app.api.runs import router as runs_router
 from app.api.threads import router as threads_router
 from app.business_store import business_store
+from app.errors import http_exception_handler, unhandled_exception_handler, validation_exception_handler
+from app.request_logging import request_log_middleware
 from app.runtime import runtime
 
 
@@ -20,6 +24,10 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.middleware("http")(request_log_middleware)
+    app.add_exception_handler(HTTPException, http_exception_handler)
+    app.add_exception_handler(RequestValidationError, validation_exception_handler)
+    app.add_exception_handler(Exception, unhandled_exception_handler)
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     app.include_router(runs_router)
     app.include_router(threads_router)

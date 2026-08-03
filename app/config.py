@@ -23,6 +23,8 @@ class Settings:
     openai_api_key: str | None = getenv("OPENAI_API_KEY") or getenv("DASHSCOPE_API_KEY")
     openai_base_url: str | None = getenv("OPENAI_BASE_URL") or getenv("BASE_URL")
     public_base_url: str = getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000")
+    bocha_api_key: str | None = getenv("BOCHA_API_KEY")
+    bocha_api_url: str = getenv("BOCHA_API_URL", "https://api.bocha.cn/v1/ai-search")
 
     cos_secret_id: str | None = getenv("COS_SECRET_ID")
     cos_secret_key: str | None = getenv("COS_SECRET_KEY")
