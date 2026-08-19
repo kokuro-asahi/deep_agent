@@ -8,6 +8,7 @@ from app.agent import AgentClient
 from app.business_store import business_store
 from app.config import get_settings
 from app.errors import classify_run_error, preflight_image_downloads, raise_thread_not_found
+from app.model_guard import ModelDisclosureGuard
 from app.observability import current_request_id, duration_ms, log_agent_event, run_context
 from app.role_prompts import load_role_prompt
 from app.runtime import runtime
@@ -23,7 +24,9 @@ from app.usage import add_usage, empty_usage
 
 class RunService:
     def __init__(self):
-        self.agent = AgentClient(get_settings())
+        settings = get_settings()
+        self.agent = AgentClient(settings)
+        self.model_guard = ModelDisclosureGuard(settings)
 
     async def validate_thread_exists(self, request: RunRequest) -> None:
         if not request.thread_id:
@@ -104,6 +107,62 @@ class RunService:
                 client_message_id=request.client_message_id,
             ):
                 await to_thread(preflight_image_downloads, content)
+                guard_result = await _model_guard_event(
+                    self.model_guard.check,
+                    content,
+                    input_summary={
+                        "mode": "json",
+                        "agent_role": agent_role,
+                        "context_version": context_version,
+                        **_content_summary(content),
+                    },
+                )
+                if guard_result["blocked"]:
+                    message = guard_result["message"]
+                    await _db_event(
+                        "save_trace_messages",
+                        business_store.save_trace_messages,
+                        run_id,
+                        request.user_id,
+                        thread_id,
+                        sequence,
+                        [],
+                        input_summary=_trace_summary([]),
+                    )
+                    await _db_event(
+                        "save_assistant_message",
+                        business_store.save_message,
+                        run_id,
+                        request.user_id,
+                        thread_id,
+                        sequence,
+                        "assistant",
+                        [{"type": "text", "text": message}],
+                        1000,
+                        input_summary={"text_length": len(message), "blocked_by_model_guard": True},
+                    )
+                    await _db_event(
+                        "complete_run",
+                        business_store.complete_run,
+                        run_id,
+                        message,
+                        empty_usage(),
+                        input_summary={"usage": empty_usage(), "blocked_by_model_guard": True},
+                    )
+                    log_agent_event(
+                        event_type="run",
+                        event_name="run_json",
+                        status="completed",
+                        output_summary={"text_length": len(message), "blocked_by_model_guard": True},
+                    )
+                    return RunResponse(
+                        run_id=run_id,
+                        user_id=request.user_id,
+                        thread_id=thread_id,
+                        status="completed",
+                        message=message,
+                        usage=Usage(**empty_usage()),
+                    )
                 result = await _agent_invoke_event(
                     self.agent.ainvoke,
                     _model_messages(agent_role, content),
@@ -272,6 +331,65 @@ class RunService:
                 client_message_id=request.client_message_id,
             ):
                 await to_thread(preflight_image_downloads, content)
+                guard_result = await _model_guard_event(
+                    self.model_guard.check,
+                    content,
+                    input_summary={
+                        "mode": "stream",
+                        "agent_role": agent_role,
+                        "context_version": context_version,
+                        **_content_summary(content),
+                    },
+                )
+                if guard_result["blocked"]:
+                    message = guard_result["message"]
+                    chunks.append(message)
+                    yield "message.delta", {"run_id": run_id, "text": message}
+                    await _db_event(
+                        "save_trace_messages",
+                        business_store.save_trace_messages,
+                        run_id,
+                        request.user_id,
+                        thread_id,
+                        sequence,
+                        trace_messages,
+                        input_summary=_trace_summary(trace_messages),
+                    )
+                    await _db_event(
+                        "save_assistant_message",
+                        business_store.save_message,
+                        run_id,
+                        request.user_id,
+                        thread_id,
+                        sequence,
+                        "assistant",
+                        [{"type": "text", "text": message}],
+                        1000,
+                        input_summary={"text_length": len(message), "blocked_by_model_guard": True},
+                    )
+                    await _db_event(
+                        "complete_run",
+                        business_store.complete_run,
+                        run_id,
+                        message,
+                        usage,
+                        input_summary={"usage": usage, "blocked_by_model_guard": True},
+                    )
+                    log_agent_event(
+                        event_type="run",
+                        event_name="run_stream",
+                        status="completed",
+                        output_summary={"text_length": len(message), "usage": usage, "blocked_by_model_guard": True},
+                    )
+                    yield "run.completed", RunResponse(
+                        run_id=run_id,
+                        user_id=request.user_id,
+                        thread_id=thread_id,
+                        status="completed",
+                        message=message,
+                        usage=Usage(**usage),
+                    ).model_dump(mode="json")
+                    return
                 stream_start = perf_counter()
                 log_agent_event(
                     event_type="model",
@@ -529,6 +647,39 @@ async def _agent_invoke_event(operation, messages, user_id: str, thread_id: str,
             "text_length": len(result.get("message", "")),
             "trace": _trace_summary(result.get("trace_messages", [])),
             "usage": result.get("usage", {}),
+        },
+    )
+    return result
+
+
+async def _model_guard_event(operation, content: list[dict[str, Any]], input_summary):
+    start_time = perf_counter()
+    log_agent_event(
+        event_type="model",
+        event_name="model_guard.check",
+        status="started",
+        input_summary=input_summary,
+    )
+    try:
+        result = await operation(content)
+    except Exception as exc:
+        log_agent_event(
+            event_type="model",
+            event_name="model_guard.check",
+            status="failed",
+            duration_ms=duration_ms(start_time),
+            input_summary=input_summary,
+            error=exc,
+        )
+        raise
+    log_agent_event(
+        event_type="model",
+        event_name="model_guard.check",
+        status="completed",
+        duration_ms=duration_ms(start_time),
+        output_summary={
+            "blocked": result.get("blocked", False),
+            "action": result.get("action", "allow"),
         },
     )
     return result

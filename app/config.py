@@ -25,6 +25,8 @@ class Settings:
     public_base_url: str = getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000")
     bocha_api_key: str | None = getenv("BOCHA_API_KEY")
     bocha_api_url: str = getenv("BOCHA_API_URL", "https://api.bocha.cn/v1/ai-search")
+    model_guard_enabled: bool = getenv("MODEL_GUARD_ENABLED", "true").lower() not in {"0", "false", "no"}
+    model_guard_response: str | None = getenv("MODEL_GUARD_RESPONSE")
 
     cos_secret_id: str | None = getenv("COS_SECRET_ID")
     cos_secret_key: str | None = getenv("COS_SECRET_KEY")

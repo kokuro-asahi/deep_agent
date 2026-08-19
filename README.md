@@ -32,6 +32,30 @@ uvicorn app.main:app --reload
 
 `AGENT_BACKEND=echo` is the default development mode. Set `AGENT_BACKEND=deepagents` and provide model credentials to use Deep Agents.
 Set `BOCHA_API_KEY` to enable the `bocha_search` web search tool.
+`MODEL_GUARD_ENABLED=true` runs a lightweight model-disclosure guard before the main Agent call. Requests about model identity, internal performance parameters, prompts, or implementation details return `MODEL_GUARD_RESPONSE`; all other requests continue to the original Agent flow.
+
+## Latency Benchmark
+
+To measure the latency impact of the model guard, run the same benchmark twice
+against a running `deepagents` service: once with `MODEL_GUARD_ENABLED=true`,
+then restart with `MODEL_GUARD_ENABLED=false` and run it again.
+
+```bash
+/opt/miniconda3/envs/deepagent/bin/python scripts/benchmark_latency.py --concurrency 5
+```
+
+The script reports streaming time to first `message.delta` and total completion
+time. When `--runs` is omitted, every built-in prompt in the selected prompt set
+is asked once; the default `mixed` set contains 20 normal questions and 20
+prompt-injection/model-disclosure probes. Use `--prompt-set normal`, `attack`,
+or `mixed`, `--concurrency 5` for parallel requests, `--runs 5` for a smaller
+random sample, `--prompt "..."` for one fixed question, `--seed 1` to shuffle the
+full prompt set reproducibly or reproduce random samples, and `--json` for
+non-streaming requests. Each result includes `answered_by=guard` when the reply
+matches the configured fixed guard response, otherwise `answered_by=agent`. It
+also reads `agent_event_logs` by `run_id` and prints
+`guard_action={"action":"block"}`, `{"action":"allow"}`, or `-` for the actual
+`model_guard.check` decision recorded by the server.
 
 ## Request Logs
 

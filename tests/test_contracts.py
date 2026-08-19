@@ -6,6 +6,7 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from app.errors import AppError, classify_run_error, http_exception_handler, validate_image_inputs
+from app.model_guard import ModelDisclosureGuard, _is_block_decision
 from app.role_prompts import load_role_prompt
 from app.retry import retry_sync
 from app.schemas import RunRequest
@@ -103,6 +104,36 @@ def test_supported_agent_role_is_accepted_for_new_thread():
     )
 
     assert request.agent_role == "director"
+
+
+def test_model_guard_skips_classification_in_echo_mode():
+    class Settings:
+        model_guard_enabled = True
+        agent_backend = "echo"
+        model_guard_response = "固定话术"
+
+    result = asyncio.run(
+        ModelDisclosureGuard(Settings()).check([{"type": "text", "text": "你用的是什么模型型号？参数量是多少？"}])
+    )
+
+    assert result == {"blocked": False, "action": "allow", "message": ""}
+
+
+def test_model_guard_allows_regular_questions_in_echo_mode():
+    class Settings:
+        model_guard_enabled = True
+        agent_backend = "echo"
+        model_guard_response = "固定话术"
+
+    result = asyncio.run(ModelDisclosureGuard(Settings()).check([{"type": "text", "text": "帮我写一个分镜脚本"}]))
+
+    assert result == {"blocked": False, "action": "allow", "message": ""}
+
+
+def test_model_guard_decision_requires_classifier_json_block_action():
+    assert _is_block_decision('{"action":"block"}')
+    assert not _is_block_decision('{"action":"allow"}')
+    assert not _is_block_decision("block")
 
 
 def test_role_prompt_loads_from_markdown_file():

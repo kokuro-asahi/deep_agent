@@ -2,9 +2,9 @@ from enum import Enum
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
-from urllib.request import Request, urlopen
+from urllib.request import Request as UrlRequest, urlopen
 
-from fastapi import HTTPException, Request
+from fastapi import HTTPException, Request as FastAPIRequest
 from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
@@ -94,7 +94,7 @@ def preflight_image_downloads(content: list[dict[str, Any]]) -> None:
             continue
         url = block.get("url", "")
         try:
-            request = Request(
+            request = UrlRequest(
                 url,
                 headers={
                     "Range": "bytes=0-0",
@@ -116,7 +116,7 @@ def preflight_image_downloads(content: list[dict[str, Any]]) -> None:
             raise AppError(ErrorCode.IMAGE_DOWNLOAD_FAILED, DEFAULT_ERROR_MESSAGES[ErrorCode.IMAGE_DOWNLOAD_FAILED], True) from exc
 
 
-async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+async def http_exception_handler(request: FastAPIRequest, exc: HTTPException) -> JSONResponse:
     if isinstance(exc.detail, dict) and "error" in exc.detail:
         return JSONResponse(status_code=exc.status_code, content=exc.detail)
     if exc.status_code == 404 and "thread" in str(exc.detail).lower():
@@ -130,7 +130,7 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
     )
 
 
-async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_exception_handler(request: FastAPIRequest, exc: RequestValidationError) -> JSONResponse:
     return JSONResponse(
         status_code=422,
         content={
@@ -140,5 +140,5 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     )
 
 
-async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+async def unhandled_exception_handler(request: FastAPIRequest, exc: Exception) -> JSONResponse:
     return JSONResponse(status_code=500, content={"error": classify_run_error(exc)})
