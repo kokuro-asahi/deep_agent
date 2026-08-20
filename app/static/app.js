@@ -2,6 +2,7 @@ const els = {
   userId: document.querySelector("#userId"),
   threadId: document.querySelector("#threadId"),
   agentRole: document.querySelector("#agentRole"),
+  agentPrompt: document.querySelector("#agentPrompt"),
   streamMode: document.querySelector("#streamMode"),
   runId: document.querySelector("#runId"),
   status: document.querySelector("#status"),
@@ -17,6 +18,7 @@ const els = {
 
 const state = {
   assistantNode: null,
+  toolNodes: new Map(),
 };
 
 renderEmpty();
@@ -28,11 +30,19 @@ els.composer.addEventListener("submit", async (event) => {
   const imageUrl = els.imageUrl.value.trim();
   if (!text && !imageUrl) return;
 
+  const validationError = validateRunControls();
+  if (validationError) {
+    appendMessage("error", validationError);
+    return;
+  }
+
   appendMessage("user", [text, imageUrl && `[image] ${imageUrl}`].filter(Boolean).join("\n"));
   els.prompt.value = "";
   els.imageUrl.value = "";
 
   const body = buildRunBody(text, imageUrl);
+  state.assistantNode = null;
+  state.toolNodes.clear();
   setBusy(true, "running");
 
   try {
@@ -60,8 +70,12 @@ els.newThread.addEventListener("click", () => {
   els.runId.textContent = "-";
   setStatus("idle");
   state.assistantNode = null;
+  state.toolNodes.clear();
   renderEmpty();
 });
+
+els.agentRole.addEventListener("change", updateAgentPromptState);
+els.threadId.addEventListener("input", updateAgentPromptState);
 
 els.loadHistory.addEventListener("click", async () => {
   const userId = els.userId.value.trim();
@@ -131,9 +145,33 @@ function buildRunBody(text, imageUrl) {
   };
 
   if (!threadId) {
-    body.agent_role = els.agentRole.value.trim();
+    const agentRole = els.agentRole.value.trim();
+    body.agent_role = agentRole || null;
+    if (!agentRole) {
+      body.agent_prompt = els.agentPrompt.value.trim();
+    }
   }
   return body;
+}
+
+function validateRunControls() {
+  const threadId = els.threadId.value.trim();
+  if (threadId) return "";
+  const agentRole = els.agentRole.value.trim();
+  const agentPrompt = els.agentPrompt.value.trim();
+  if (!agentRole && !agentPrompt) {
+    return "新会话选择 agent_role 为 null 时，需要填写 agent_prompt";
+  }
+  return "";
+}
+
+function updateAgentPromptState() {
+  const isExistingThread = Boolean(els.threadId.value.trim());
+  const isCustomPrompt = !els.agentRole.value.trim();
+  els.agentPrompt.disabled = isExistingThread || !isCustomPrompt;
+  els.agentPrompt.placeholder = isExistingThread
+    ? "已有 thread_id 时沿用会话的系统提示词"
+    : "agent_role 为 null 时填写系统提示词";
 }
 
 async function runJson(body) {
@@ -166,7 +204,6 @@ async function runStream(body) {
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-  state.assistantNode = appendMessage("assistant", "");
 
   while (true) {
     const { done, value } = await reader.read();
@@ -193,6 +230,12 @@ function handleSseEvent(rawEvent) {
     setStatus("running");
   } else if (event === "message.delta") {
     appendAssistantDelta(data.text || "");
+  } else if (event === "tool.call.started") {
+    upsertToolCall(data, "running");
+  } else if (event === "tool.call.completed") {
+    upsertToolCall(data, "completed");
+  } else if (event === "tool.call.failed") {
+    upsertToolCall(data, "failed");
   } else if (event === "run.completed") {
     applyRunMeta(data);
     setStatus("completed");
@@ -217,6 +260,117 @@ function appendAssistantDelta(text) {
   scrollMessages();
 }
 
+function upsertToolCall(data, status) {
+  const key = data.tool_call_id || `${data.run_id || "run"}:${data.tool_type || "tool"}:${state.toolNodes.size}`;
+  let node = state.toolNodes.get(key);
+  if (!node) {
+    node = createToolNode(data);
+    state.toolNodes.set(key, node);
+    clearEmpty();
+    els.messages.appendChild(node.root);
+  }
+
+  node.title.textContent = data.tool_type || "tool";
+  node.id.textContent = data.tool_call_id || "-";
+  node.status.textContent = toolStatusLabel(status);
+  node.status.dataset.status = status;
+  node.root.dataset.status = status;
+
+  if (status === "running") {
+    node.stage.textContent = "工具调用中";
+    node.arguments.textContent = formatJson(data.arguments || {});
+    node.result.textContent = "";
+    node.error.textContent = "";
+    node.resultBlock.hidden = true;
+    node.errorBlock.hidden = true;
+  } else if (status === "completed") {
+    node.stage.textContent = "工具调用后";
+    node.result.textContent = formatJson(data.result || {});
+    node.resultBlock.hidden = false;
+    node.error.textContent = "";
+    node.errorBlock.hidden = true;
+  } else {
+    node.stage.textContent = "工具调用后";
+    node.error.textContent = data.error?.message || "工具调用失败";
+    node.errorBlock.hidden = false;
+    node.result.textContent = "";
+    node.resultBlock.hidden = true;
+  }
+  scrollMessages();
+}
+
+function createToolNode(data) {
+  const root = document.createElement("article");
+  root.className = "tool-call";
+  root.dataset.status = "running";
+
+  const header = document.createElement("div");
+  header.className = "tool-call-header";
+
+  const main = document.createElement("div");
+  main.className = "tool-call-main";
+
+  const stage = document.createElement("span");
+  stage.className = "tool-call-stage";
+  stage.textContent = "工具开始";
+
+  const title = document.createElement("strong");
+  title.className = "tool-call-title";
+  title.textContent = data.tool_type || "tool";
+
+  const meta = document.createElement("span");
+  meta.className = "tool-call-id";
+  const id = document.createElement("span");
+  id.textContent = data.tool_call_id || "-";
+  meta.append("ID ", id);
+
+  main.append(stage, title, meta);
+
+  const status = document.createElement("span");
+  status.className = "tool-call-status";
+  status.dataset.status = "running";
+  status.textContent = toolStatusLabel("running");
+  header.append(main, status);
+
+  const argumentsBlock = createToolBlock("参数");
+  const resultBlock = createToolBlock("结果");
+  const errorBlock = createToolBlock("错误");
+  resultBlock.wrapper.hidden = true;
+  errorBlock.wrapper.hidden = true;
+
+  root.append(header, argumentsBlock.wrapper, resultBlock.wrapper, errorBlock.wrapper);
+  return {
+    root,
+    stage,
+    title,
+    id,
+    status,
+    arguments: argumentsBlock.value,
+    result: resultBlock.value,
+    resultBlock: resultBlock.wrapper,
+    error: errorBlock.value,
+    errorBlock: errorBlock.wrapper,
+  };
+}
+
+function createToolBlock(labelText) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "tool-call-block";
+  const label = document.createElement("span");
+  label.className = "tool-call-label";
+  label.textContent = labelText;
+  const value = document.createElement("pre");
+  value.className = "tool-call-value";
+  wrapper.append(label, value);
+  return { wrapper, value };
+}
+
+function toolStatusLabel(status) {
+  if (status === "completed") return "已完成";
+  if (status === "failed") return "失败";
+  return "调用中";
+}
+
 function appendMessage(role, text) {
   clearEmpty();
   const node = document.createElement("article");
@@ -235,6 +389,8 @@ function appendMessage(role, text) {
 
 function renderHistory(items) {
   els.messages.innerHTML = "";
+  state.assistantNode = null;
+  state.toolNodes.clear();
   if (!items.length) {
     renderEmpty("暂无历史");
     return;
@@ -249,6 +405,14 @@ function flattenContent(content) {
   return (content || [])
     .map((block) => block.text || block.url || JSON.stringify(block))
     .join("\n");
+}
+
+function formatJson(value) {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
 }
 
 async function readJson(response) {
@@ -302,3 +466,5 @@ async function checkHealth() {
     );
   }
 }
+
+updateAgentPromptState();

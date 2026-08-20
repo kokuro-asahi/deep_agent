@@ -8,9 +8,9 @@ from app.agent import AgentClient
 from app.business_store import business_store
 from app.config import get_settings
 from app.errors import classify_run_error, preflight_image_downloads, raise_thread_not_found
+from app.model_messages import model_messages
 from app.model_guard import ModelDisclosureGuard
 from app.observability import current_request_id, duration_ms, log_agent_event, run_context
-from app.role_prompts import load_role_prompt
 from app.runtime import runtime
 from app.schemas import (
     ContextResetResponse,
@@ -19,6 +19,7 @@ from app.schemas import (
     ThreadMessagesResponse,
     Usage,
 )
+from app.tool_sse import tool_trace_sse_event
 from app.usage import add_usage, empty_usage
 
 
@@ -55,12 +56,14 @@ class RunService:
             request.user_id,
             request.thread_id,
             request.agent_role,
+            request.agent_prompt,
         )
         if not thread:
             raise_thread_not_found()
         thread_id = thread["thread_id"]
         context_version = int(thread["context_version"])
         agent_role = thread.get("agent_role")
+        agent_prompt = thread.get("agent_prompt")
         run_id = f"run_{uuid4().hex}"
         content = _content(request)
         await _attach_request_context(run_id, request.user_id, thread_id, request.client_message_id)
@@ -113,6 +116,7 @@ class RunService:
                     input_summary={
                         "mode": "json",
                         "agent_role": agent_role,
+                        "custom_agent_prompt": bool(agent_prompt),
                         "context_version": context_version,
                         **_content_summary(content),
                     },
@@ -165,13 +169,14 @@ class RunService:
                     )
                 result = await _agent_invoke_event(
                     self.agent.ainvoke,
-                    _model_messages(agent_role, content),
+                    model_messages(agent_role, agent_prompt, content),
                     request.user_id,
                     thread_id,
                     context_version,
                     input_summary={
                         "mode": "json",
                         "agent_role": agent_role,
+                        "custom_agent_prompt": bool(agent_prompt),
                         "context_version": context_version,
                         **_content_summary(content),
                     },
@@ -273,6 +278,7 @@ class RunService:
             request.user_id,
             request.thread_id,
             request.agent_role,
+            request.agent_prompt,
         )
         if not thread:
             raise_thread_not_found()
@@ -280,6 +286,7 @@ class RunService:
         thread_id = thread["thread_id"]
         context_version = int(thread["context_version"])
         agent_role = thread.get("agent_role")
+        agent_prompt = thread.get("agent_prompt")
         content = _content(request)
         await _attach_request_context(run_id, request.user_id, thread_id, request.client_message_id)
         with run_context(
@@ -337,6 +344,7 @@ class RunService:
                     input_summary={
                         "mode": "stream",
                         "agent_role": agent_role,
+                        "custom_agent_prompt": bool(agent_prompt),
                         "context_version": context_version,
                         **_content_summary(content),
                     },
@@ -398,13 +406,14 @@ class RunService:
                     input_summary={
                         "mode": "stream",
                         "agent_role": agent_role,
+                        "custom_agent_prompt": bool(agent_prompt),
                         "context_version": context_version,
                         **_content_summary(content),
                     },
                 )
                 try:
                     async for event in self.agent.astream_events(
-                        _model_messages(agent_role, content),
+                        model_messages(agent_role, agent_prompt, content),
                         request.user_id,
                         thread_id,
                         context_version,
@@ -415,6 +424,9 @@ class RunService:
                             yield "message.delta", {"run_id": run_id, "text": text}
                         elif event["type"] == "trace":
                             trace_messages.append(event["message"])
+                            tool_event = tool_trace_sse_event(run_id, event["message"])
+                            if tool_event:
+                                yield tool_event
                         elif event["type"] == "usage":
                             add_usage(usage, event["usage"])
                         elif event["type"] == "usage_total":
@@ -541,26 +553,6 @@ class RunService:
             has_more=page < pages,
             messages=rows,
         )
-
-
-def _to_model_message(role: str, content: list[dict[str, Any]]) -> dict[str, Any]:
-    blocks: list[dict[str, Any]] = []
-    for block in content:
-        if block.get("type") == "text":
-            blocks.append({"type": "text", "text": block.get("text", "")})
-        elif block.get("type") == "image":
-            blocks.append({"type": "image_url", "image_url": {"url": block.get("url", "")}})
-    return {"role": role, "content": blocks}
-
-
-def _model_messages(agent_role: str | None, content: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    messages: list[dict[str, Any]] = []
-    if agent_role:
-        prompt = load_role_prompt(agent_role)
-        if prompt:
-            messages.append({"role": "system", "content": prompt})
-    messages.append(_to_model_message("user", content))
-    return messages
 
 
 def _content(request: RunRequest) -> list[dict[str, Any]]:

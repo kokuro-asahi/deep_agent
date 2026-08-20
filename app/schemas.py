@@ -29,6 +29,7 @@ class RunRequest(BaseModel):
     stream: bool = True
     content: list[ContentBlock] = Field(min_length=1)
     agent_role: str | None = None
+    agent_prompt: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("agent_role")
@@ -44,10 +45,18 @@ class RunRequest(BaseModel):
             raise ValueError(f"agent_role must be one of: {allowed}")
         return role
 
+    @field_validator("agent_prompt")
+    @classmethod
+    def validate_agent_prompt(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        prompt = value.strip()
+        return prompt or None
+
     @model_validator(mode="after")
     def require_role_for_new_thread(self) -> "RunRequest":
-        if not self.thread_id and not self.agent_role:
-            raise ValueError("agent_role is required when thread_id is empty")
+        if not self.thread_id and not self.agent_role and not self.agent_prompt:
+            raise ValueError("agent_role or agent_prompt is required when thread_id is empty")
         return self
 
 

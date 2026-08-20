@@ -6,11 +6,13 @@ from fastapi import HTTPException
 from pydantic import ValidationError
 
 from app.errors import AppError, classify_run_error, http_exception_handler, validate_image_inputs
+from app.model_messages import model_messages
 from app.model_guard import ModelDisclosureGuard, _is_block_decision
 from app.role_prompts import load_role_prompt
 from app.retry import retry_sync
 from app.schemas import RunRequest
 from app.sse import encode_sse
+from app.tool_sse import tool_trace_sse_event
 from app.tools import _normalize_bocha_result, get_agent_tools
 from app.usage import usage_from_messages
 
@@ -25,6 +27,96 @@ def test_sse_encoding_preserves_event_and_json_data():
     encoded = encode_sse("message.delta", {"run_id": "run_001", "text": "你好"})
 
     assert encoded == 'event: message.delta\ndata: {"run_id":"run_001","text":"你好"}\n\n'
+
+
+def test_tool_call_trace_maps_to_started_sse_event():
+    event = tool_trace_sse_event(
+        "run_001",
+        {
+            "role": "tool_call",
+            "content": [
+                {
+                    "type": "tool_call",
+                    "tool_call_id": "call_001",
+                    "tool_name": "bocha_search",
+                    "arguments": {"query": "西安明天天气", "count": 5, "freshness": "noLimit"},
+                }
+            ],
+        },
+    )
+
+    assert event == (
+        "tool.call.started",
+        {
+            "run_id": "run_001",
+            "tool_call_id": "call_001",
+            "tool_type": "bocha_search",
+            "arguments": {"query": "西安明天天气", "count": 5, "freshness": "noLimit"},
+        },
+    )
+
+
+def test_tool_callback_trace_maps_to_completed_sse_event_with_unwrapped_result():
+    result = {
+        "query": "西安明天天气",
+        "count": 1,
+        "results": [{"title": "西安天气预报", "url": "https://example.com/weather"}],
+    }
+    event = tool_trace_sse_event(
+        "run_001",
+        {
+            "role": "tool_callback",
+            "content": [
+                {
+                    "type": "tool_callback",
+                    "tool_call_id": "call_001",
+                    "tool_name": "bocha_search",
+                    "status": "completed",
+                    "result": {"type": "json", "content": result},
+                    "error": None,
+                }
+            ],
+        },
+    )
+
+    assert event == (
+        "tool.call.completed",
+        {
+            "run_id": "run_001",
+            "tool_call_id": "call_001",
+            "tool_type": "bocha_search",
+            "result": result,
+        },
+    )
+
+
+def test_tool_callback_trace_maps_to_failed_sse_event():
+    event = tool_trace_sse_event(
+        "run_001",
+        {
+            "role": "tool_callback",
+            "content": [
+                {
+                    "type": "tool_callback",
+                    "tool_call_id": "call_001",
+                    "tool_name": "bocha_search",
+                    "status": "error",
+                    "result": {"type": "text", "content": "博查 API 请求超时"},
+                    "error": {"type": "text", "content": "博查 API 请求超时"},
+                }
+            ],
+        },
+    )
+
+    assert event == (
+        "tool.call.failed",
+        {
+            "run_id": "run_001",
+            "tool_call_id": "call_001",
+            "tool_type": "bocha_search",
+            "error": {"code": "TOOL_CALL_FAILED", "message": "博查 API 请求超时", "retryable": True},
+        },
+    )
 
 
 def test_invalid_image_url_maps_to_image_download_failed():
@@ -74,6 +166,30 @@ def test_agent_role_required_when_thread_id_is_missing():
         )
 
 
+def test_agent_prompt_is_accepted_for_new_thread_without_role():
+    request = RunRequest(
+        user_id="user_001",
+        client_message_id="message_001",
+        agent_role=None,
+        agent_prompt="  你是一个自定义 Agent。  ",
+        content=[{"type": "text", "text": "hi"}],
+    )
+
+    assert request.agent_role is None
+    assert request.agent_prompt == "你是一个自定义 Agent。"
+
+
+def test_blank_agent_prompt_is_rejected_for_new_thread_without_role():
+    with pytest.raises(ValidationError):
+        RunRequest(
+            user_id="user_001",
+            client_message_id="message_001",
+            agent_role=None,
+            agent_prompt="  ",
+            content=[{"type": "text", "text": "hi"}],
+        )
+
+
 def test_agent_role_must_be_supported():
     with pytest.raises(ValidationError):
         RunRequest(
@@ -104,6 +220,17 @@ def test_supported_agent_role_is_accepted_for_new_thread():
     )
 
     assert request.agent_role == "director"
+
+
+def test_custom_agent_prompt_is_used_as_system_message():
+    messages = model_messages(
+        None,
+        "你是一个自定义 Agent。",
+        [{"type": "text", "text": "hi"}],
+    )
+
+    assert messages[0] == {"role": "system", "content": "你是一个自定义 Agent。"}
+    assert messages[1]["role"] == "user"
 
 
 def test_model_guard_skips_classification_in_echo_mode():
