@@ -225,8 +225,6 @@ def _extract_stream_tool_calls(
     tool_call_chunks: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
     records = _tool_call_records(message)
-    if records:
-        return records
 
     chunks = getattr(message, "tool_call_chunks", None) or []
     for index, chunk in enumerate(chunks):
@@ -242,6 +240,11 @@ def _extract_stream_tool_calls(
         args = _get_value(chunk, "args")
         if isinstance(args, str):
             current["arguments"] += args
+        elif isinstance(args, dict):
+            current["arguments"] = json.dumps(args, ensure_ascii=False)
+
+    if records:
+        return [record for record in records if _stream_tool_call_arguments_ready(record)]
     return []
 
 
@@ -251,7 +254,10 @@ def _tool_call_record_from_chunks(tool_call_chunks: dict[str, dict[str, Any]], t
             continue
         if not chunk.get("tool_name"):
             return None
-        return _tool_call_record_from_chunk(chunk)
+        record = _tool_call_record_from_chunk(chunk)
+        if not _stream_tool_call_arguments_ready(record):
+            return None
+        return record
     return None
 
 
@@ -259,7 +265,9 @@ def _flush_tool_call_chunks(tool_call_chunks: dict[str, dict[str, Any]]) -> list
     records = []
     for chunk in tool_call_chunks.values():
         if chunk.get("tool_name"):
-            records.append(_tool_call_record_from_chunk(chunk))
+            record = _tool_call_record_from_chunk(chunk)
+            if _stream_tool_call_arguments_ready(record):
+                records.append(record)
     return records
 
 
@@ -271,6 +279,13 @@ def _tool_call_record_from_chunk(chunk: dict[str, Any]) -> dict[str, Any]:
         "tool_name": chunk.get("tool_name"),
         "arguments": _parse_json_object(raw_arguments),
     }
+
+
+def _stream_tool_call_arguments_ready(record: dict[str, Any]) -> bool:
+    arguments = record.get("arguments")
+    if record.get("tool_name") == "bocha_search":
+        return isinstance(arguments, dict) and bool(arguments)
+    return arguments is not None
 
 
 def _tool_callback_record(message: Any) -> dict[str, Any] | None:

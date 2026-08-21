@@ -2,11 +2,6 @@ from contextlib import AbstractContextManager
 from typing import Any
 from urllib.parse import quote_plus
 
-from deepagents import create_deep_agent
-from langchain_core.messages import AnyMessage
-from langchain_openai import ChatOpenAI
-from langgraph.checkpoint.postgres import PostgresSaver
-
 from app.config import Settings, get_settings
 from app.tools import get_agent_tools
 
@@ -14,13 +9,16 @@ from app.tools import get_agent_tools
 class AgentRuntime:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._checkpointer_cm: AbstractContextManager[PostgresSaver] | None = None
-        self.checkpointer: PostgresSaver | None = None
+        self._checkpointer_cm: AbstractContextManager[Any] | None = None
+        self.checkpointer: Any | None = None
         self.agent: Any | None = None
 
     def start(self) -> None:
         if self.settings.agent_backend == "echo":
             return
+        from deepagents import create_deep_agent
+        from langgraph.checkpoint.postgres import PostgresSaver
+
         database_uri = self.build_database_uri()
         self._checkpointer_cm = PostgresSaver.from_conn_string(database_uri)
         self.checkpointer = self._checkpointer_cm.__enter__()
@@ -38,7 +36,9 @@ class AgentRuntime:
         self.checkpointer = None
         self.agent = None
 
-    def create_model(self) -> ChatOpenAI:
+    def create_model(self) -> Any:
+        from langchain_openai import ChatOpenAI
+
         if not self.settings.openai_api_key:
             raise RuntimeError("缺少 DASHSCOPE_API_KEY 或 OPENAI_API_KEY")
         if not self.settings.openai_base_url:
@@ -71,7 +71,7 @@ class AgentRuntime:
 runtime = AgentRuntime(get_settings())
 
 
-def extract_text(message: AnyMessage | Any) -> str:
+def extract_text(message: Any) -> str:
     content = getattr(message, "content", message)
     if isinstance(content, str):
         return content

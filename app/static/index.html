@@ -3,17 +3,17 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Deep Agents 测试台</title>
+    <title>Agent 对话测试台</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <main class="shell">
       <aside class="sidebar">
         <header class="brand">
-          <div class="mark">DA</div>
+          <div class="brand-mark">AI</div>
           <div>
-            <h1>Deep Agents</h1>
-            <p>接口测试台</p>
+            <h1>Agent Chat</h1>
+            <p>主对话接口测试台</p>
           </div>
         </header>
 
@@ -22,24 +22,32 @@
             <span>User ID</span>
             <input id="userId" value="user_test" autocomplete="off" />
           </label>
+
           <label>
             <span>Thread ID</span>
-            <input id="threadId" placeholder="留空自动创建" autocomplete="off" />
+            <input id="threadId" placeholder="留空创建新会话" autocomplete="off" />
           </label>
+
           <label>
             <span>Agent Role</span>
             <select id="agentRole">
+              <option value="">自定义提示词 / custom prompt</option>
               <option value="director">director</option>
               <option value="cinematographer">cinematographer</option>
               <option value="art_director">art_director</option>
               <option value="screenwriter">screenwriter</option>
-              <option value="">null / custom prompt</option>
             </select>
           </label>
+
           <label>
             <span>Agent Prompt</span>
-            <textarea id="agentPrompt" rows="5" placeholder="agent_role 为 null 时填写系统提示词"></textarea>
+            <textarea
+              id="agentPrompt"
+              rows="7"
+              placeholder="选择 custom prompt 且 Thread ID 为空时，这里会作为新会话的系统提示词"
+            ></textarea>
           </label>
+
           <label class="toggle">
             <input id="streamMode" type="checkbox" checked />
             <span>流式响应</span>
@@ -48,8 +56,7 @@
 
         <section class="panel actions">
           <button id="newThread" type="button">新会话</button>
-          <button id="loadHistory" type="button">读取历史</button>
-          <button id="clearContext" type="button">清除上下文</button>
+          <button id="fillPrompt" type="button">填入示例提示词</button>
         </section>
 
         <section class="panel meta">
@@ -68,7 +75,7 @@
         <div id="messages" class="messages"></div>
 
         <form id="composer" class="composer">
-          <textarea id="prompt" rows="3" placeholder="输入测试消息"></textarea>
+          <textarea id="prompt" rows="3" placeholder="输入消息"></textarea>
           <div class="composer-row">
             <input id="imageUrl" placeholder="图片 URL，可选" autocomplete="off" />
             <button id="send" type="submit">发送</button>

@@ -8,7 +8,6 @@ import sys
 import time
 from pathlib import Path
 from urllib.parse import quote_plus
-from uuid import uuid4
 
 import httpx
 
@@ -155,7 +154,6 @@ async def run_one(
     async with semaphore:
         body = {
             "user_id": args.user_id,
-            "client_message_id": f"bench_{uuid4().hex}",
             "stream": not args.json,
             "agent_role": args.agent_role,
             "content": [{"type": "text", "text": prompt}],

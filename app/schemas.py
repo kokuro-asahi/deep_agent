@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.role_prompts import SUPPORTED_AGENT_ROLES, is_supported_agent_role
 
@@ -23,9 +23,10 @@ ContentBlock = TextContent | ImageContent
 
 
 class RunRequest(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
     user_id: str = Field(min_length=1)
     thread_id: str | None = None
-    client_message_id: str = Field(min_length=1)
     stream: bool = True
     content: list[ContentBlock] = Field(min_length=1)
     agent_role: str | None = None

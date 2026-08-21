@@ -64,7 +64,7 @@ also reads `agent_event_logs` by `run_id` and prints
 Every HTTP request is recorded in `api_request_logs` with a generated `request_id`,
 method, path, route, status code, duration, response size, client host, user agent,
 and error payload when the request fails. `/v1/runs` requests also attach `run_id`,
-`user_id`, `thread_id`, and `client_message_id` when those values become available.
+`user_id`, and `thread_id` when those values become available.
 A log row is inserted as `running` when the request starts and updated to `completed`
 or `failed` when the response body finishes streaming.
 

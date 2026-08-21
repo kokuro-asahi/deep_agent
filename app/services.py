@@ -37,20 +37,6 @@ class RunService:
             raise_thread_not_found()
 
     async def run_json(self, request: RunRequest) -> RunResponse:
-        existing_run = await to_thread(
-            business_store.get_run_by_client_message,
-            request.user_id,
-            request.client_message_id,
-        )
-        if existing_run:
-            await _attach_request_context(
-                existing_run.get("run_id"),
-                request.user_id,
-                existing_run.get("thread_id"),
-                request.client_message_id,
-            )
-            return _response_from_run(existing_run)
-
         thread = await to_thread(
             business_store.get_or_create_thread,
             request.user_id,
@@ -66,12 +52,11 @@ class RunService:
         agent_prompt = thread.get("agent_prompt")
         run_id = f"run_{uuid4().hex}"
         content = _content(request)
-        await _attach_request_context(run_id, request.user_id, thread_id, request.client_message_id)
+        await _attach_request_context(run_id, request.user_id, thread_id)
         with run_context(
             run_id=run_id,
             user_id=request.user_id,
             thread_id=thread_id,
-            client_message_id=request.client_message_id,
         ):
             sequence = await _db_event(
                 "next_sequence",
@@ -86,7 +71,6 @@ class RunService:
                 run_id,
                 request.user_id,
                 thread_id,
-                request.client_message_id,
                 request.metadata,
                 input_summary={"metadata_keys": sorted(request.metadata.keys())},
             )
@@ -107,7 +91,6 @@ class RunService:
                 run_id=run_id,
                 user_id=request.user_id,
                 thread_id=thread_id,
-                client_message_id=request.client_message_id,
             ):
                 await to_thread(preflight_image_downloads, content)
                 guard_result = await _model_guard_event(
@@ -234,7 +217,6 @@ class RunService:
                 run_id=run_id,
                 user_id=request.user_id,
                 thread_id=thread_id,
-                client_message_id=request.client_message_id,
             ):
                 log_agent_event(event_type="run", event_name="run_json", status="failed", error=exc)
                 error_info = classify_run_error(exc)
@@ -256,23 +238,6 @@ class RunService:
             )
 
     async def run_stream(self, request: RunRequest) -> AsyncIterator[tuple[str, dict[str, Any]]]:
-        existing_run = await to_thread(
-            business_store.get_run_by_client_message,
-            request.user_id,
-            request.client_message_id,
-        )
-        if existing_run:
-            await _attach_request_context(
-                existing_run.get("run_id"),
-                request.user_id,
-                existing_run.get("thread_id"),
-                request.client_message_id,
-            )
-            response = _response_from_run(existing_run).model_dump(mode="json")
-            event_name = "run.failed" if response["status"] == "failed" else "run.completed"
-            yield event_name, response
-            return
-
         thread = await to_thread(
             business_store.get_or_create_thread,
             request.user_id,
@@ -288,12 +253,11 @@ class RunService:
         agent_role = thread.get("agent_role")
         agent_prompt = thread.get("agent_prompt")
         content = _content(request)
-        await _attach_request_context(run_id, request.user_id, thread_id, request.client_message_id)
+        await _attach_request_context(run_id, request.user_id, thread_id)
         with run_context(
             run_id=run_id,
             user_id=request.user_id,
             thread_id=thread_id,
-            client_message_id=request.client_message_id,
         ):
             sequence = await _db_event(
                 "next_sequence",
@@ -308,7 +272,6 @@ class RunService:
                 run_id,
                 request.user_id,
                 thread_id,
-                request.client_message_id,
                 request.metadata,
                 input_summary={"metadata_keys": sorted(request.metadata.keys())},
             )
@@ -335,7 +298,6 @@ class RunService:
                 run_id=run_id,
                 user_id=request.user_id,
                 thread_id=thread_id,
-                client_message_id=request.client_message_id,
             ):
                 await to_thread(preflight_image_downloads, content)
                 guard_result = await _model_guard_event(
@@ -457,7 +419,6 @@ class RunService:
                 run_id=run_id,
                 user_id=request.user_id,
                 thread_id=thread_id,
-                client_message_id=request.client_message_id,
             ):
                 await _db_event(
                     "save_trace_messages",
@@ -508,7 +469,6 @@ class RunService:
                 run_id=run_id,
                 user_id=request.user_id,
                 thread_id=thread_id,
-                client_message_id=request.client_message_id,
             ):
                 log_agent_event(event_type="run", event_name="run_stream", status="failed", error=exc)
                 error_info = classify_run_error(exc)
@@ -563,7 +523,6 @@ async def _attach_request_context(
     run_id: str | None,
     user_id: str | None,
     thread_id: str | None,
-    client_message_id: str | None,
 ) -> None:
     request_id = current_request_id()
     if not request_id:
@@ -575,7 +534,6 @@ async def _attach_request_context(
             run_id,
             user_id,
             thread_id,
-            client_message_id,
         )
     except Exception as exc:
         log_agent_event(
@@ -707,15 +665,3 @@ def _trace_summary(trace_messages: list[dict[str, Any]]) -> dict[str, Any]:
         "tool_callbacks": callbacks,
         "tool_names": sorted(set(tool_names)),
     }
-
-
-def _response_from_run(run: dict[str, Any]) -> RunResponse:
-    return RunResponse(
-        run_id=run["run_id"],
-        user_id=run["user_id"],
-        thread_id=run["thread_id"],
-        status=run["status"],
-        message=run.get("message") or "",
-        usage=Usage(**(run.get("usage") or {})),
-        error=run.get("error"),
-    )

@@ -12,17 +12,37 @@ const els = {
   imageUrl: document.querySelector("#imageUrl"),
   send: document.querySelector("#send"),
   newThread: document.querySelector("#newThread"),
-  loadHistory: document.querySelector("#loadHistory"),
-  clearContext: document.querySelector("#clearContext"),
+  fillPrompt: document.querySelector("#fillPrompt"),
 };
 
 const state = {
   assistantNode: null,
-  toolNodes: new Map(),
 };
 
+const EXAMPLE_PROMPT = "你是一个专业影视创作助手。回答要简洁，优先给出可执行方案；涉及分镜时输出镜号、景别、镜头运动和画面描述。";
+
 renderEmpty();
+updatePromptState();
 checkHealth();
+
+els.agentRole.addEventListener("change", updatePromptState);
+els.threadId.addEventListener("input", updatePromptState);
+
+els.newThread.addEventListener("click", () => {
+  els.threadId.value = "";
+  els.runId.textContent = "-";
+  state.assistantNode = null;
+  setStatus("idle");
+  renderEmpty();
+  updatePromptState();
+});
+
+els.fillPrompt.addEventListener("click", () => {
+  els.agentRole.value = "";
+  els.threadId.value = "";
+  els.agentPrompt.value = EXAMPLE_PROMPT;
+  updatePromptState();
+});
 
 els.composer.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -30,98 +50,54 @@ els.composer.addEventListener("submit", async (event) => {
   const imageUrl = els.imageUrl.value.trim();
   if (!text && !imageUrl) return;
 
-  const validationError = validateRunControls();
-  if (validationError) {
-    appendMessage("error", validationError);
+  const error = validateControls();
+  if (error) {
+    appendMessage("error", error);
     return;
   }
 
   appendMessage("user", [text, imageUrl && `[image] ${imageUrl}`].filter(Boolean).join("\n"));
   els.prompt.value = "";
   els.imageUrl.value = "";
+  state.assistantNode = null;
 
   const body = buildRunBody(text, imageUrl);
-  state.assistantNode = null;
-  state.toolNodes.clear();
   setBusy(true, "running");
-
   try {
     if (body.stream) {
-      try {
-        await runStream(body);
-      } catch (error) {
-        appendMessage("system", "流式读取失败，已自动改用非流式重试。");
-        body.stream = false;
-        await runJson(body);
-      }
+      await runStream(body);
     } else {
       await runJson(body);
     }
-  } catch (error) {
-    appendMessage("error", error.message || String(error));
+  } catch (err) {
+    appendMessage("error", err.message || String(err));
     setStatus("failed");
   } finally {
     setBusy(false);
   }
 });
 
-els.newThread.addEventListener("click", () => {
-  els.threadId.value = "";
-  els.runId.textContent = "-";
-  setStatus("idle");
-  state.assistantNode = null;
-  state.toolNodes.clear();
-  renderEmpty();
-});
+function updatePromptState() {
+  const hasThread = Boolean(els.threadId.value.trim());
+  const usesCustomPrompt = !els.agentRole.value.trim();
+  els.agentPrompt.disabled = hasThread || !usesCustomPrompt;
+  els.agentPrompt.closest("label").classList.toggle("disabled", els.agentPrompt.disabled);
+  if (hasThread) {
+    els.agentPrompt.placeholder = "已有 Thread ID 时沿用创建会话时的系统提示词";
+  } else if (usesCustomPrompt) {
+    els.agentPrompt.placeholder = "这里会作为新会话的系统提示词";
+  } else {
+    els.agentPrompt.placeholder = "选择 custom prompt 后可填写";
+  }
+}
 
-els.agentRole.addEventListener("change", updateAgentPromptState);
-els.threadId.addEventListener("input", updateAgentPromptState);
-
-els.loadHistory.addEventListener("click", async () => {
-  const userId = els.userId.value.trim();
-  const threadId = els.threadId.value.trim();
-  if (!userId || !threadId) {
-    appendMessage("error", "缺少 user_id 或 thread_id");
-    return;
-  }
-  setBusy(true, "loading");
-  try {
-    const response = await fetch(`/v1/threads/${encodeURIComponent(threadId)}/messages?user_id=${encodeURIComponent(userId)}&page=1&page_size=20`);
-    const data = await readJson(response);
-    renderHistory(data.messages || []);
-    setStatus("history loaded");
-  } catch (error) {
-    appendMessage("error", error.message || String(error));
-    setStatus("failed");
-  } finally {
-    setBusy(false);
-  }
-});
-
-els.clearContext.addEventListener("click", async () => {
-  const userId = els.userId.value.trim();
-  const threadId = els.threadId.value.trim();
-  if (!userId || !threadId) {
-    appendMessage("error", "缺少 user_id 或 thread_id");
-    return;
-  }
-  setBusy(true, "clearing");
-  try {
-    const response = await fetch(`/v1/threads/${encodeURIComponent(threadId)}/context`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ user_id: userId }),
-    });
-    await readJson(response);
-    appendMessage("system", "上下文已清除");
-    setStatus("context cleared");
-  } catch (error) {
-    appendMessage("error", error.message || String(error));
-    setStatus("failed");
-  } finally {
-    setBusy(false);
-  }
-});
+function validateControls() {
+  if (!els.userId.value.trim()) return "缺少 User ID";
+  if (els.threadId.value.trim()) return "";
+  if (els.agentRole.value.trim()) return "";
+  if (!els.agentPrompt.value.trim()) return "新会话使用 custom prompt 时，需要填写 Agent Prompt";
+  return "";
+}
 
 function buildRunBody(text, imageUrl) {
   const content = [];
@@ -136,42 +112,21 @@ function buildRunBody(text, imageUrl) {
   }
 
   const threadId = els.threadId.value.trim();
+  const agentRole = els.agentRole.value.trim();
   const body = {
     user_id: els.userId.value.trim(),
     thread_id: threadId || null,
-    client_message_id: `msg_${Date.now()}_${Math.random().toString(16).slice(2)}`,
     stream: els.streamMode.checked,
     content,
   };
 
   if (!threadId) {
-    const agentRole = els.agentRole.value.trim();
     body.agent_role = agentRole || null;
     if (!agentRole) {
       body.agent_prompt = els.agentPrompt.value.trim();
     }
   }
   return body;
-}
-
-function validateRunControls() {
-  const threadId = els.threadId.value.trim();
-  if (threadId) return "";
-  const agentRole = els.agentRole.value.trim();
-  const agentPrompt = els.agentPrompt.value.trim();
-  if (!agentRole && !agentPrompt) {
-    return "新会话选择 agent_role 为 null 时，需要填写 agent_prompt";
-  }
-  return "";
-}
-
-function updateAgentPromptState() {
-  const isExistingThread = Boolean(els.threadId.value.trim());
-  const isCustomPrompt = !els.agentRole.value.trim();
-  els.agentPrompt.disabled = isExistingThread || !isCustomPrompt;
-  els.agentPrompt.placeholder = isExistingThread
-    ? "已有 thread_id 时沿用会话的系统提示词"
-    : "agent_role 为 null 时填写系统提示词";
 }
 
 async function runJson(body) {
@@ -185,10 +140,10 @@ async function runJson(body) {
   if (data.error) {
     appendMessage("error", data.error.message || "run failed");
     setStatus("failed");
-  } else {
-    appendMessage("assistant", data.message || "");
-    setStatus(data.status);
+    return;
   }
+  appendMessage("assistant", data.message || "");
+  setStatus(data.status || "completed");
 }
 
 async function runStream(body) {
@@ -211,9 +166,7 @@ async function runStream(body) {
     buffer += decoder.decode(value, { stream: true });
     const events = buffer.split("\n\n");
     buffer = events.pop() || "";
-    for (const rawEvent of events) {
-      handleSseEvent(rawEvent);
-    }
+    for (const rawEvent of events) handleSseEvent(rawEvent);
   }
   if (buffer.trim()) handleSseEvent(buffer);
 }
@@ -231,11 +184,11 @@ function handleSseEvent(rawEvent) {
   } else if (event === "message.delta") {
     appendAssistantDelta(data.text || "");
   } else if (event === "tool.call.started") {
-    upsertToolCall(data, "running");
+    appendMessage("tool", `调用工具 ${data.tool_type || ""}`);
   } else if (event === "tool.call.completed") {
-    upsertToolCall(data, "completed");
+    appendMessage("tool", `工具完成 ${data.tool_type || ""}`);
   } else if (event === "tool.call.failed") {
-    upsertToolCall(data, "failed");
+    appendMessage("error", data.error?.message || "工具调用失败");
   } else if (event === "run.completed") {
     applyRunMeta(data);
     setStatus("completed");
@@ -245,9 +198,30 @@ function handleSseEvent(rawEvent) {
   }
 }
 
+async function readJson(response) {
+  const text = await response.text();
+  const data = text ? JSON.parse(text) : {};
+  if (!response.ok) {
+    throw new Error(data.error?.message || text || `HTTP ${response.status}`);
+  }
+  return data;
+}
+
+async function checkHealth() {
+  try {
+    const response = await fetch("/health");
+    setStatus(response.ok ? "ready" : "unhealthy");
+  } catch {
+    setStatus("offline");
+  }
+}
+
 function applyRunMeta(data) {
   if (data.run_id) els.runId.textContent = data.run_id;
-  if (data.thread_id) els.threadId.value = data.thread_id;
+  if (data.thread_id) {
+    els.threadId.value = data.thread_id;
+    updatePromptState();
+  }
   if (data.status) setStatus(data.status);
 }
 
@@ -255,182 +229,29 @@ function appendAssistantDelta(text) {
   if (!state.assistantNode) {
     state.assistantNode = appendMessage("assistant", "");
   }
-  const content = state.assistantNode.querySelector(".content");
+  const content = state.assistantNode.querySelector(".message-content");
   content.textContent += text;
   scrollMessages();
 }
 
-function upsertToolCall(data, status) {
-  const key = data.tool_call_id || `${data.run_id || "run"}:${data.tool_type || "tool"}:${state.toolNodes.size}`;
-  let node = state.toolNodes.get(key);
-  if (!node) {
-    node = createToolNode(data);
-    state.toolNodes.set(key, node);
-    clearEmpty();
-    els.messages.appendChild(node.root);
-  }
-
-  node.title.textContent = data.tool_type || "tool";
-  node.id.textContent = data.tool_call_id || "-";
-  node.status.textContent = toolStatusLabel(status);
-  node.status.dataset.status = status;
-  node.root.dataset.status = status;
-
-  if (status === "running") {
-    node.stage.textContent = "工具调用中";
-    node.arguments.textContent = formatJson(data.arguments || {});
-    node.result.textContent = "";
-    node.error.textContent = "";
-    node.resultBlock.hidden = true;
-    node.errorBlock.hidden = true;
-  } else if (status === "completed") {
-    node.stage.textContent = "工具调用后";
-    node.result.textContent = formatJson(data.result || {});
-    node.resultBlock.hidden = false;
-    node.error.textContent = "";
-    node.errorBlock.hidden = true;
-  } else {
-    node.stage.textContent = "工具调用后";
-    node.error.textContent = data.error?.message || "工具调用失败";
-    node.errorBlock.hidden = false;
-    node.result.textContent = "";
-    node.resultBlock.hidden = true;
-  }
-  scrollMessages();
-}
-
-function createToolNode(data) {
-  const root = document.createElement("article");
-  root.className = "tool-call";
-  root.dataset.status = "running";
-
-  const header = document.createElement("div");
-  header.className = "tool-call-header";
-
-  const main = document.createElement("div");
-  main.className = "tool-call-main";
-
-  const stage = document.createElement("span");
-  stage.className = "tool-call-stage";
-  stage.textContent = "工具开始";
-
-  const title = document.createElement("strong");
-  title.className = "tool-call-title";
-  title.textContent = data.tool_type || "tool";
-
-  const meta = document.createElement("span");
-  meta.className = "tool-call-id";
-  const id = document.createElement("span");
-  id.textContent = data.tool_call_id || "-";
-  meta.append("ID ", id);
-
-  main.append(stage, title, meta);
-
-  const status = document.createElement("span");
-  status.className = "tool-call-status";
-  status.dataset.status = "running";
-  status.textContent = toolStatusLabel("running");
-  header.append(main, status);
-
-  const argumentsBlock = createToolBlock("参数");
-  const resultBlock = createToolBlock("结果");
-  const errorBlock = createToolBlock("错误");
-  resultBlock.wrapper.hidden = true;
-  errorBlock.wrapper.hidden = true;
-
-  root.append(header, argumentsBlock.wrapper, resultBlock.wrapper, errorBlock.wrapper);
-  return {
-    root,
-    stage,
-    title,
-    id,
-    status,
-    arguments: argumentsBlock.value,
-    result: resultBlock.value,
-    resultBlock: resultBlock.wrapper,
-    error: errorBlock.value,
-    errorBlock: errorBlock.wrapper,
-  };
-}
-
-function createToolBlock(labelText) {
-  const wrapper = document.createElement("div");
-  wrapper.className = "tool-call-block";
-  const label = document.createElement("span");
-  label.className = "tool-call-label";
-  label.textContent = labelText;
-  const value = document.createElement("pre");
-  value.className = "tool-call-value";
-  wrapper.append(label, value);
-  return { wrapper, value };
-}
-
-function toolStatusLabel(status) {
-  if (status === "completed") return "已完成";
-  if (status === "failed") return "失败";
-  return "调用中";
-}
-
 function appendMessage(role, text) {
   clearEmpty();
-  const node = document.createElement("article");
-  node.className = `message ${role}`;
-  const label = document.createElement("span");
-  label.className = "role";
-  label.textContent = role;
+  const item = document.createElement("article");
+  item.className = `message ${role}`;
+  const title = document.createElement("div");
+  title.className = "message-role";
+  title.textContent = role;
   const content = document.createElement("div");
-  content.className = "content";
+  content.className = "message-content";
   content.textContent = text;
-  node.append(label, content);
-  els.messages.appendChild(node);
+  item.append(title, content);
+  els.messages.appendChild(item);
   scrollMessages();
-  return node;
+  return item;
 }
 
-function renderHistory(items) {
-  els.messages.innerHTML = "";
-  state.assistantNode = null;
-  state.toolNodes.clear();
-  if (!items.length) {
-    renderEmpty("暂无历史");
-    return;
-  }
-  for (const item of [...items].reverse()) {
-    if (item.user) appendMessage("user", flattenContent(item.user.content));
-    if (item.assistant) appendMessage("assistant", flattenContent(item.assistant.content));
-  }
-}
-
-function flattenContent(content) {
-  return (content || [])
-    .map((block) => block.text || block.url || JSON.stringify(block))
-    .join("\n");
-}
-
-function formatJson(value) {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
-}
-
-async function readJson(response) {
-  const text = await response.text();
-  let data = {};
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    throw new Error(text || response.statusText);
-  }
-  if (!response.ok) {
-    throw new Error(data.detail || data.error?.message || response.statusText);
-  }
-  return data;
-}
-
-function renderEmpty(text = "开始一个新的测试会话") {
-  els.messages.innerHTML = `<div class="empty">${text}</div>`;
+function renderEmpty() {
+  els.messages.innerHTML = '<div class="empty">创建新会话时可选择角色，也可以选择 custom prompt 并填写独立系统提示词。</div>';
 }
 
 function clearEmpty() {
@@ -442,29 +263,15 @@ function scrollMessages() {
   els.messages.scrollTop = els.messages.scrollHeight;
 }
 
-function setBusy(isBusy, status) {
-  els.send.disabled = isBusy;
-  els.loadHistory.disabled = isBusy;
-  els.clearContext.disabled = isBusy;
-  if (status) setStatus(status);
-}
-
 function setStatus(status) {
   els.status.textContent = status;
 }
 
-async function checkHealth() {
-  try {
-    const response = await fetch("/health", { cache: "no-store" });
-    await readJson(response);
-    setStatus("ready");
-  } catch (error) {
-    setStatus("backend unreachable");
-    appendMessage(
-      "error",
-      `无法连接后端：${error.message || String(error)}\n请确认访问的是服务器地址，而不是 127.0.0.1。`
-    );
-  }
+function setBusy(busy, status) {
+  els.send.disabled = busy;
+  els.agentRole.disabled = busy;
+  els.threadId.disabled = busy;
+  els.streamMode.disabled = busy;
+  if (status) setStatus(status);
+  updatePromptState();
 }
-
-updateAgentPromptState();

@@ -11,7 +11,6 @@ request_id_var: ContextVar[str | None] = ContextVar("request_id", default=None)
 run_id_var: ContextVar[str | None] = ContextVar("run_id", default=None)
 user_id_var: ContextVar[str | None] = ContextVar("user_id", default=None)
 thread_id_var: ContextVar[str | None] = ContextVar("thread_id", default=None)
-client_message_id_var: ContextVar[str | None] = ContextVar("client_message_id", default=None)
 
 
 def set_request_id(request_id: str | None) -> Token[str | None]:
@@ -32,13 +31,11 @@ def run_context(
     run_id: str | None = None,
     user_id: str | None = None,
     thread_id: str | None = None,
-    client_message_id: str | None = None,
 ):
     tokens = (
         run_id_var.set(run_id),
         user_id_var.set(user_id),
         thread_id_var.set(thread_id),
-        client_message_id_var.set(client_message_id),
     )
     try:
         yield
@@ -46,7 +43,6 @@ def run_context(
         run_id_var.reset(tokens[0])
         user_id_var.reset(tokens[1])
         thread_id_var.reset(tokens[2])
-        client_message_id_var.reset(tokens[3])
 
 
 def log_agent_event(
@@ -68,7 +64,6 @@ def log_agent_event(
             run_id=run_id_var.get(),
             user_id=user_id_var.get(),
             thread_id=thread_id_var.get(),
-            client_message_id=client_message_id_var.get(),
             event_type=event_type,
             event_name=event_name,
             status=status,

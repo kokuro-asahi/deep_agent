@@ -5,6 +5,7 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
+from app.agent import _extract_stream_tool_calls
 from app.errors import AppError, classify_run_error, http_exception_handler, validate_image_inputs
 from app.model_messages import model_messages
 from app.model_guard import ModelDisclosureGuard, _is_block_decision
@@ -161,7 +162,6 @@ def test_agent_role_required_when_thread_id_is_missing():
     with pytest.raises(ValidationError):
         RunRequest(
             user_id="user_001",
-            client_message_id="message_001",
             content=[{"type": "text", "text": "hi"}],
         )
 
@@ -169,7 +169,6 @@ def test_agent_role_required_when_thread_id_is_missing():
 def test_agent_prompt_is_accepted_for_new_thread_without_role():
     request = RunRequest(
         user_id="user_001",
-        client_message_id="message_001",
         agent_role=None,
         agent_prompt="  你是一个自定义 Agent。  ",
         content=[{"type": "text", "text": "hi"}],
@@ -183,7 +182,6 @@ def test_blank_agent_prompt_is_rejected_for_new_thread_without_role():
     with pytest.raises(ValidationError):
         RunRequest(
             user_id="user_001",
-            client_message_id="message_001",
             agent_role=None,
             agent_prompt="  ",
             content=[{"type": "text", "text": "hi"}],
@@ -194,7 +192,6 @@ def test_agent_role_must_be_supported():
     with pytest.raises(ValidationError):
         RunRequest(
             user_id="user_001",
-            client_message_id="message_001",
             agent_role="producer",
             content=[{"type": "text", "text": "hi"}],
         )
@@ -204,7 +201,6 @@ def test_agent_role_not_required_for_existing_thread():
     request = RunRequest(
         user_id="user_001",
         thread_id="thread_001",
-        client_message_id="message_001",
         content=[{"type": "text", "text": "hi"}],
     )
 
@@ -214,12 +210,61 @@ def test_agent_role_not_required_for_existing_thread():
 def test_supported_agent_role_is_accepted_for_new_thread():
     request = RunRequest(
         user_id="user_001",
-        client_message_id="message_001",
         agent_role="director",
         content=[{"type": "text", "text": "hi"}],
     )
 
     assert request.agent_role == "director"
+
+
+def test_run_request_ignores_legacy_message_ids():
+    request = RunRequest(
+        user_id="user_001",
+        thread_id="thread_001",
+        client_message_id="client_001",
+        message_id="message_001",
+        content=[{"type": "text", "text": "hi"}],
+    )
+
+    assert request.thread_id == "thread_001"
+    assert not hasattr(request, "client_message_id")
+    assert not hasattr(request, "message_id")
+
+
+def test_bocha_stream_tool_call_waits_for_arguments():
+    tool_call_chunks = {}
+    empty_message = type(
+        "AIMessageChunk",
+        (),
+        {
+            "tool_calls": [{"id": "call_001", "name": "bocha_search", "args": {}}],
+            "tool_call_chunks": [
+                {"id": "call_001", "index": 0, "name": "bocha_search", "args": ""},
+            ],
+        },
+    )()
+
+    assert _extract_stream_tool_calls(empty_message, tool_call_chunks) == []
+
+    args_message = type(
+        "AIMessageChunk",
+        (),
+        {
+            "tool_calls": [{"id": "call_001", "name": "bocha_search", "args": {"query": "西安明天天气"}}],
+            "tool_call_chunks": [
+                {"id": "call_001", "index": 0, "name": "bocha_search", "args": {"query": "西安明天天气"}},
+            ],
+        },
+    )()
+
+    assert _extract_stream_tool_calls(args_message, tool_call_chunks) == [
+        {
+            "type": "tool_call",
+            "tool_call_id": "call_001",
+            "tool_name": "bocha_search",
+            "arguments": {"query": "西安明天天气"},
+        }
+    ]
 
 
 def test_custom_agent_prompt_is_used_as_system_message():

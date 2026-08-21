@@ -68,15 +68,13 @@ class BusinessStore:
                     run_id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
                     thread_id TEXT NOT NULL,
-                    client_message_id TEXT NOT NULL,
                     status TEXT NOT NULL,
                     message TEXT,
                     usage JSONB,
                     error JSONB,
                     metadata JSONB,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-                    completed_at TIMESTAMPTZ,
-                    UNIQUE (user_id, client_message_id)
+                    completed_at TIMESTAMPTZ
                 )
                 """
             )
@@ -105,7 +103,6 @@ class BusinessStore:
                     run_id TEXT,
                     user_id TEXT,
                     thread_id TEXT,
-                    client_message_id TEXT,
                     method TEXT NOT NULL,
                     path TEXT NOT NULL,
                     route TEXT,
@@ -130,7 +127,6 @@ class BusinessStore:
                     run_id TEXT,
                     user_id TEXT,
                     thread_id TEXT,
-                    client_message_id TEXT,
                     event_type TEXT NOT NULL,
                     event_name TEXT NOT NULL,
                     status TEXT NOT NULL,
@@ -146,7 +142,10 @@ class BusinessStore:
             conn.execute("ALTER TABLE api_request_logs ADD COLUMN IF NOT EXISTS run_id TEXT")
             conn.execute("ALTER TABLE api_request_logs ADD COLUMN IF NOT EXISTS user_id TEXT")
             conn.execute("ALTER TABLE api_request_logs ADD COLUMN IF NOT EXISTS thread_id TEXT")
-            conn.execute("ALTER TABLE api_request_logs ADD COLUMN IF NOT EXISTS client_message_id TEXT")
+            conn.execute("ALTER TABLE agent_runs DROP CONSTRAINT IF EXISTS agent_runs_user_id_client_message_id_key")
+            conn.execute("ALTER TABLE agent_runs DROP COLUMN IF EXISTS client_message_id")
+            conn.execute("ALTER TABLE api_request_logs DROP COLUMN IF EXISTS client_message_id")
+            conn.execute("ALTER TABLE agent_event_logs DROP COLUMN IF EXISTS client_message_id")
             conn.execute("ALTER TABLE agent_threads ADD COLUMN IF NOT EXISTS agent_prompt TEXT")
             conn.execute("ALTER TABLE agent_messages ADD COLUMN IF NOT EXISTS message_order INTEGER NOT NULL DEFAULT 0")
             conn.execute(
@@ -249,7 +248,6 @@ class BusinessStore:
         run_id: str | None,
         user_id: str | None,
         thread_id: str | None,
-        client_message_id: str | None,
     ) -> None:
         with self.connection() as conn:
             conn.execute(
@@ -258,11 +256,10 @@ class BusinessStore:
                 SET
                     run_id = COALESCE(%s, run_id),
                     user_id = COALESCE(%s, user_id),
-                    thread_id = COALESCE(%s, thread_id),
-                    client_message_id = COALESCE(%s, client_message_id)
+                    thread_id = COALESCE(%s, thread_id)
                 WHERE request_id = %s
                 """,
-                (run_id, user_id, thread_id, client_message_id, request_id),
+                (run_id, user_id, thread_id, request_id),
             )
             conn.commit()
 
@@ -272,7 +269,6 @@ class BusinessStore:
         run_id: str | None,
         user_id: str | None,
         thread_id: str | None,
-        client_message_id: str | None,
         event_type: str,
         event_name: str,
         status: str,
@@ -286,18 +282,17 @@ class BusinessStore:
             conn.execute(
                 """
                 INSERT INTO agent_event_logs (
-                    request_id, run_id, user_id, thread_id, client_message_id,
+                    request_id, run_id, user_id, thread_id,
                     event_type, event_name, status, duration_ms, attempt,
                     input_summary, output_summary, error
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """,
                 (
                     request_id,
                     run_id,
                     user_id,
                     thread_id,
-                    client_message_id,
                     event_type,
                     event_name,
                     status,
@@ -309,17 +304,6 @@ class BusinessStore:
                 ),
             )
             conn.commit()
-
-    def get_run_by_client_message(self, user_id: str, client_message_id: str) -> dict[str, Any] | None:
-        with self.connection() as conn:
-            return conn.execute(
-                """
-                SELECT run_id, user_id, thread_id, client_message_id, status, message, usage, error, metadata
-                FROM agent_runs
-                WHERE user_id = %s AND client_message_id = %s
-                """,
-                (user_id, client_message_id),
-            ).fetchone()
 
     def get_thread(self, user_id: str, thread_id: str) -> dict[str, Any] | None:
         with self.connection() as conn:
@@ -365,22 +349,20 @@ class BusinessStore:
         run_id: str,
         user_id: str,
         thread_id: str,
-        client_message_id: str,
         metadata: dict[str, Any],
     ) -> None:
         with self.connection() as conn:
             conn.execute(
                 """
                 INSERT INTO agent_runs (
-                    run_id, user_id, thread_id, client_message_id, status, usage, metadata
+                    run_id, user_id, thread_id, status, usage, metadata
                 )
-                VALUES (%s, %s, %s, %s, 'running', %s, %s)
+                VALUES (%s, %s, %s, 'running', %s, %s)
                 """,
                 (
                     run_id,
                     user_id,
                     thread_id,
-                    client_message_id,
                     Jsonb({"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}),
                     Jsonb(metadata),
                 ),
