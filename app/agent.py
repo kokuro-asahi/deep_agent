@@ -4,6 +4,7 @@ from asyncio import to_thread
 from typing import Any
 
 from app.config import Settings
+from app.errors import AppError, ErrorCode
 from app.runtime import extract_text, runtime
 from app.usage import add_usage, empty_usage, usage_from_message, usage_from_messages
 
@@ -45,7 +46,9 @@ class AgentClient:
             {"messages": messages},
             runtime.config(user_id, thread_id, context_version),
         )
-        return _normalize_agent_result(result)
+        normalized = _normalize_agent_result(result)
+        _enforce_tool_call_limit(normalized.get("trace_messages", []), self.settings.max_tool_calls)
+        return normalized
 
     async def astream_text(
         self,
@@ -79,6 +82,7 @@ class AgentClient:
         )
         tool_call_chunks: dict[str, dict[str, Any]] = {}
         emitted_tool_calls: set[str] = set()
+        tool_callbacks = 0
         total_usage = empty_usage()
         while True:
             event = await to_thread(_next_stream_item, stream)
@@ -100,6 +104,8 @@ class AgentClient:
                 yield {"type": "trace", "message": {"role": "tool_call", "content": [record]}}
             callback = _tool_callback_record(candidate)
             if callback:
+                tool_callbacks += 1
+                _raise_if_tool_call_limit_exceeded(tool_callbacks, self.settings.max_tool_calls)
                 tool_call_id = callback.get("tool_call_id")
                 if tool_call_id:
                     record = _tool_call_record_from_chunks(tool_call_chunks, tool_call_id)
@@ -181,6 +187,21 @@ def _extract_trace_messages(messages: list[Any]) -> list[dict[str, Any]]:
         if callback:
             trace_messages.append({"role": "tool_callback", "content": [callback]})
     return trace_messages
+
+
+def _enforce_tool_call_limit(trace_messages: list[dict[str, Any]], limit: int) -> None:
+    callbacks = sum(1 for message in trace_messages if message.get("role") == "tool_callback")
+    _raise_if_tool_call_limit_exceeded(callbacks, limit)
+
+
+def _raise_if_tool_call_limit_exceeded(count: int, limit: int) -> None:
+    if limit <= 0 or count <= limit:
+        return
+    raise AppError(
+        ErrorCode.TOOL_CALL_FAILED,
+        f"工具调用次数超过限制（最多 {limit} 次）",
+        retryable=False,
+    )
 
 
 def _tool_call_records(message: Any) -> list[dict[str, Any]]:

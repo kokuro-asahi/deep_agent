@@ -12,6 +12,16 @@ if load_dotenv:
     load_dotenv()
 
 
+def _int_env(name: str, default: int) -> int:
+    value = getenv(name)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
 class Settings:
     pg_user: str = getenv("PG_USER", "agent")
     pg_password: str = getenv("PG_PASSWORD", "agent")
@@ -20,6 +30,7 @@ class Settings:
     pg_port: str = getenv("PG_PORT", "5432")
     agent_backend: str = getenv("AGENT_BACKEND", "echo")
     agent_model: str = getenv("AGENT_MODEL") or getenv("MODEL", "qwen-plus")
+    max_tool_calls: int = _int_env("MAX_TOOL_CALLS", 10)
     openai_api_key: str | None = getenv("OPENAI_API_KEY") or getenv("DASHSCOPE_API_KEY")
     openai_base_url: str | None = getenv("OPENAI_BASE_URL") or getenv("BASE_URL")
     public_base_url: str = getenv("PUBLIC_BASE_URL", "http://127.0.0.1:8000")

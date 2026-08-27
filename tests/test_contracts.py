@@ -5,7 +5,7 @@ import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from app.agent import _extract_stream_tool_calls
+from app.agent import _enforce_tool_call_limit, _extract_stream_tool_calls
 from app.errors import AppError, classify_run_error, http_exception_handler, validate_image_inputs
 from app.model_messages import model_messages
 from app.model_guard import ModelDisclosureGuard, _is_block_decision
@@ -265,6 +265,21 @@ def test_bocha_stream_tool_call_waits_for_arguments():
             "arguments": {"query": "西安明天天气"},
         }
     ]
+
+
+def test_tool_call_limit_counts_completed_callbacks():
+    trace_messages = [{"role": "tool_callback", "content": []} for _ in range(10)]
+
+    _enforce_tool_call_limit(trace_messages, 10)
+
+    with pytest.raises(AppError) as error:
+        _enforce_tool_call_limit([*trace_messages, {"role": "tool_callback", "content": []}], 10)
+
+    assert error.value.to_error_info() == {
+        "code": "TOOL_CALL_FAILED",
+        "message": "工具调用次数超过限制（最多 10 次）",
+        "retryable": False,
+    }
 
 
 def test_custom_agent_prompt_is_used_as_system_message():
