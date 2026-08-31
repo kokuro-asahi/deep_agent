@@ -1,4 +1,3 @@
-from contextlib import AbstractContextManager
 from typing import Any
 from urllib.parse import quote_plus
 
@@ -9,7 +8,7 @@ from app.tools import get_agent_tools
 class AgentRuntime:
     def __init__(self, settings: Settings):
         self.settings = settings
-        self._checkpointer_cm: AbstractContextManager[Any] | None = None
+        self._checkpointer_pool: Any | None = None
         self.checkpointer: Any | None = None
         self.agent: Any | None = None
 
@@ -18,10 +17,16 @@ class AgentRuntime:
             return
         from deepagents import create_deep_agent
         from langgraph.checkpoint.postgres import PostgresSaver
+        from psycopg.rows import dict_row
+        from psycopg_pool import ConnectionPool
 
         database_uri = self.build_database_uri()
-        self._checkpointer_cm = PostgresSaver.from_conn_string(database_uri)
-        self.checkpointer = self._checkpointer_cm.__enter__()
+        self._checkpointer_pool = ConnectionPool(
+            conninfo=database_uri,
+            kwargs={"autocommit": True, "prepare_threshold": 0, "row_factory": dict_row},
+            open=True,
+        )
+        self.checkpointer = PostgresSaver(self._checkpointer_pool)
         self.checkpointer.setup()
         self.agent = create_deep_agent(
             model=self.create_model(),
@@ -30,9 +35,9 @@ class AgentRuntime:
         )
 
     def stop(self) -> None:
-        if self._checkpointer_cm:
-            self._checkpointer_cm.__exit__(None, None, None)
-        self._checkpointer_cm = None
+        if self._checkpointer_pool:
+            self._checkpointer_pool.close()
+        self._checkpointer_pool = None
         self.checkpointer = None
         self.agent = None
 
