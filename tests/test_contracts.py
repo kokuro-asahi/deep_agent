@@ -210,11 +210,11 @@ def test_agent_role_not_required_for_existing_thread():
 def test_supported_agent_role_is_accepted_for_new_thread():
     request = RunRequest(
         user_id="user_001",
-        agent_role="director",
+        agent_role="storyboard_artist",
         content=[{"type": "text", "text": "hi"}],
     )
 
-    assert request.agent_role == "director"
+    assert request.agent_role == "storyboard_artist"
 
 
 def test_run_request_ignores_legacy_message_ids():
@@ -324,9 +324,9 @@ def test_model_guard_decision_requires_classifier_json_block_action():
 
 
 def test_role_prompt_loads_from_markdown_file():
-    prompt = load_role_prompt("director")
+    prompt = load_role_prompt("storyboard_artist")
 
-    assert "电影导演" in prompt
+    assert "分镜师" in prompt
 
 
 def test_usage_sums_multiple_model_messages_in_one_run():

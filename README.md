@@ -6,7 +6,7 @@ Phase-one backend for the Agent interface described in the attached API and tech
 
 - `POST /v1/runs` for text/image conversations, streaming or JSON.
   - When `thread_id` is empty, provide either `agent_role` or `agent_prompt`.
-  - `agent_role` must be one of `director`, `cinematographer`, `art_director`, or `screenwriter`, or `null`.
+  - `agent_role` must be one of `director`, `cinematographer`, `art_director`, `screenwriter`, or `storyboard_artist`, or `null`.
   - When `agent_role` is `null`, `agent_prompt` is used as the Agent system prompt.
   - When `thread_id` is provided, it must already exist; unknown threads return `404`.
   - Role system prompts are loaded from `app/prompts/roles/*.md`.

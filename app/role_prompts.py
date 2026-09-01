@@ -9,6 +9,7 @@ ROLE_PROMPT_FILES = {
     "cinematographer": "cinematographer.md",
     "art_director": "art_director.md",
     "screenwriter": "screenwriter.md",
+    "storyboard_artist": "storyboard_artist.md",
 }
 
 SUPPORTED_AGENT_ROLES = tuple(ROLE_PROMPT_FILES)
