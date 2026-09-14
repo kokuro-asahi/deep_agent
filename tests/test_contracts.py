@@ -8,7 +8,7 @@ from pydantic import ValidationError
 from app.agent import _enforce_tool_call_limit, _extract_stream_tool_calls
 from app.errors import AppError, classify_run_error, http_exception_handler, validate_image_inputs
 from app.model_messages import model_messages
-from app.model_guard import ModelDisclosureGuard, _is_block_decision
+from app.model_guard import ModelDisclosureGuard, _CLASSIFIER_SYSTEM_PROMPT, _is_block_decision
 from app.role_prompts import load_role_prompt
 from app.retry import retry_sync
 from app.schemas import RunRequest
@@ -321,6 +321,34 @@ def test_model_guard_decision_requires_classifier_json_block_action():
     assert _is_block_decision('{"action":"block"}')
     assert not _is_block_decision('{"action":"allow"}')
     assert not _is_block_decision("block")
+
+
+def test_model_guard_uses_deterministic_model_and_allows_role_questions(monkeypatch):
+    class Settings:
+        model_guard_enabled = True
+        agent_backend = "deepagents"
+        model_guard_response = "固定话术"
+
+    captured = {}
+
+    class Model:
+        def invoke(self, messages):
+            captured["messages"] = messages
+            return '{"action":"allow"}'
+
+    from app.runtime import runtime
+
+    def create_model(*, temperature):
+        captured["temperature"] = temperature
+        return Model()
+
+    monkeypatch.setattr(runtime, "create_model", create_model)
+    result = asyncio.run(ModelDisclosureGuard(Settings()).check([{"type": "text", "text": "你是什么角色？"}]))
+
+    assert result == {"blocked": False, "action": "allow", "message": ""}
+    assert captured["temperature"] == 0
+    assert "你是什么角色？" in captured["messages"][0]["content"]
+    assert "必须输出 {\"action\":\"allow\"}" in _CLASSIFIER_SYSTEM_PROMPT
 
 
 def test_role_prompt_loads_from_markdown_file():

@@ -41,7 +41,7 @@ class AgentRuntime:
         self.checkpointer = None
         self.agent = None
 
-    def create_model(self) -> Any:
+    def create_model(self, *, temperature: float = 0.2) -> Any:
         from langchain_openai import ChatOpenAI
 
         if not self.settings.openai_api_key:
@@ -52,7 +52,7 @@ class AgentRuntime:
             model=self.settings.agent_model,
             api_key=self.settings.openai_api_key,
             base_url=self.settings.openai_base_url,
-            temperature=0.2,
+            temperature=temperature,
             stream_usage=True,
             max_retries=2,
             timeout=60,
