@@ -31,6 +31,7 @@ class RunRequest(BaseModel):
     content: list[ContentBlock] = Field(min_length=1)
     agent_role: str | None = None
     agent_prompt: str | None = None
+    active_skill_ids: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
     @field_validator("agent_role")
@@ -53,6 +54,14 @@ class RunRequest(BaseModel):
             return None
         prompt = value.strip()
         return prompt or None
+
+    @field_validator("active_skill_ids")
+    @classmethod
+    def validate_active_skill_ids(cls, value: list[str]) -> list[str]:
+        normalized = [skill_id.strip() for skill_id in value if skill_id.strip()]
+        if len(normalized) != len(set(normalized)):
+            raise ValueError("active_skill_ids must not contain duplicates")
+        return normalized
 
     @model_validator(mode="after")
     def require_role_for_new_thread(self) -> "RunRequest":

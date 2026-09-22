@@ -1,11 +1,13 @@
 import asyncio
 import json
+from types import SimpleNamespace
 
 import pytest
 from fastapi import HTTPException
 from pydantic import ValidationError
 
-from app.agent import _enforce_tool_call_limit, _extract_stream_tool_calls
+from app.agent import _enforce_tool_call_limit, _extract_stream_text, _extract_stream_tool_calls
+from app.config import _csv_env
 from app.errors import AppError, classify_run_error, http_exception_handler, validate_image_inputs
 from app.model_messages import model_messages
 from app.model_guard import ModelDisclosureGuard, _CLASSIFIER_SYSTEM_PROMPT, _is_block_decision
@@ -15,6 +17,8 @@ from app.schemas import RunRequest
 from app.sse import encode_sse
 from app.tool_sse import tool_trace_sse_event
 from app.tools import _normalize_bocha_result, get_agent_tools
+from app.runtime import AgentRuntime
+from app.skills import SkillRegistry
 from app.usage import usage_from_messages
 
 
@@ -22,6 +26,65 @@ class FakeMessage:
     def __init__(self, usage_metadata=None, response_metadata=None):
         self.usage_metadata = usage_metadata
         self.response_metadata = response_metadata or {}
+
+
+def test_csv_env_parses_agent_skill_paths():
+    assert _csv_env("skills, shared/skills, ,personal-skills") == [
+        "skills",
+        "shared/skills",
+        "personal-skills",
+    ]
+
+
+def test_skill_paths_are_exposed_as_deepagents_virtual_paths(tmp_path):
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+    runtime = AgentRuntime(
+        SimpleNamespace(
+            agent_filesystem_root=str(tmp_path),
+            agent_skills_paths=("skills",),
+        )
+    )
+
+    assert runtime.skill_paths() == ["/skills/"]
+
+
+def test_skill_paths_reject_directories_outside_filesystem_root(tmp_path):
+    outside_dir = tmp_path.parent / "outside-skills"
+    outside_dir.mkdir(exist_ok=True)
+    runtime = AgentRuntime(
+        SimpleNamespace(
+            agent_filesystem_root=str(tmp_path),
+            agent_skills_paths=(str(outside_dir),),
+        )
+    )
+
+    with pytest.raises(ValueError, match="AGENT_SKILLS_PATHS entries"):
+        runtime.skill_paths()
+
+
+def test_skill_registry_lists_public_metadata_and_resolves_selected_paths(tmp_path):
+    skill_dir = tmp_path / "skills" / "research"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: research\ndescription: Research trusted sources.\n---\n# Research\n",
+        encoding="utf-8",
+    )
+    registry = SkillRegistry(
+        SimpleNamespace(agent_filesystem_root=str(tmp_path), agent_skills_paths=("skills",))
+    )
+
+    assert [skill.public_dict() for skill in registry.list()] == [
+        {
+            "id": "research",
+            "name": "research",
+            "description": "Research trusted sources.",
+            "enabled_by_default": False,
+        }
+    ]
+    assert registry.paths_for(["research"]) == ["/skills/research/"]
+    with pytest.raises(ValueError, match="Unknown active_skill_ids"):
+        registry.paths_for(["missing"])
 
 
 def test_sse_encoding_preserves_event_and_json_data():
@@ -178,6 +241,23 @@ def test_agent_prompt_is_accepted_for_new_thread_without_role():
     assert request.agent_prompt == "你是一个自定义 Agent。"
 
 
+def test_active_skill_ids_default_to_disabled_and_reject_duplicates():
+    request = RunRequest(
+        user_id="user_001",
+        content=[{"type": "text", "text": "你好"}],
+        agent_role="director",
+    )
+    assert request.active_skill_ids == []
+
+    with pytest.raises(ValidationError, match="active_skill_ids must not contain duplicates"):
+        RunRequest(
+            user_id="user_001",
+            content=[{"type": "text", "text": "你好"}],
+            agent_role="director",
+            active_skill_ids=["research", "research"],
+        )
+
+
 def test_blank_agent_prompt_is_rejected_for_new_thread_without_role():
     with pytest.raises(ValidationError):
         RunRequest(
@@ -265,6 +345,31 @@ def test_bocha_stream_tool_call_waits_for_arguments():
             "arguments": {"query": "西安明天天气"},
         }
     ]
+
+
+def test_stream_text_excludes_reasoning_blocks():
+    message = type(
+        "AIMessageChunk",
+        (),
+        {
+            "type": "ai",
+            "content": [
+                {"type": "reasoning", "text": "这是不应发送给客户端的思考过程"},
+                {"type": "thinking", "text": "这同样不应发送"},
+                {"type": "text", "text": "这是给用户的最终回答。"},
+            ],
+        },
+    )()
+
+    assert _extract_stream_text(message) == "这是给用户的最终回答。"
+
+
+def test_stream_text_excludes_tool_node_and_tool_summary_events():
+    message = type("AIMessageChunk", (), {"type": "ai", "content": "工具检索摘要不应显示为回答"})()
+
+    assert _extract_stream_text((message, {"langgraph_node": "tools"})) == ""
+    assert _extract_stream_text((message, {"tags": ["tool_result_summary"]})) == ""
+    assert _extract_stream_text((message, {"metadata": {"suppress_stream_text": True}})) == ""
 
 
 def test_tool_call_limit_counts_completed_callbacks():

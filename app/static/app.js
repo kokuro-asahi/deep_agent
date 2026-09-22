@@ -3,9 +3,13 @@ const els = {
   threadId: document.querySelector("#threadId"),
   agentRole: document.querySelector("#agentRole"),
   agentPrompt: document.querySelector("#agentPrompt"),
-  streamMode: document.querySelector("#streamMode"),
+  skillOptions: document.querySelector("#skillOptions"),
   runId: document.querySelector("#runId"),
   status: document.querySelector("#status"),
+  settingsPanel: document.querySelector("#settingsPanel"),
+  settingsToggle: document.querySelector("#settingsToggle"),
+  closeSettings: document.querySelector("#closeSettings"),
+  topNewThread: document.querySelector("#topNewThread"),
   messages: document.querySelector("#messages"),
   composer: document.querySelector("#composer"),
   prompt: document.querySelector("#prompt"),
@@ -17,6 +21,8 @@ const els = {
 
 const state = {
   assistantNode: null,
+  toolCards: new Map(),
+  toolActivities: new Map(),
 };
 
 const EXAMPLE_PROMPT = "你是一个专业影视创作助手。回答要简洁，优先给出可执行方案；涉及分镜时输出镜号、景别、镜头运动和画面描述。";
@@ -24,16 +30,25 @@ const EXAMPLE_PROMPT = "你是一个专业影视创作助手。回答要简洁�
 renderEmpty();
 updatePromptState();
 checkHealth();
+loadSkills();
 
 els.agentRole.addEventListener("change", updatePromptState);
 els.threadId.addEventListener("input", updatePromptState);
+els.settingsToggle.addEventListener("click", () => setSettingsOpen(true));
+els.closeSettings.addEventListener("click", () => setSettingsOpen(false));
+els.topNewThread.addEventListener("click", () => els.newThread.click());
 
 els.newThread.addEventListener("click", () => {
   els.threadId.value = "";
   els.runId.textContent = "-";
   state.assistantNode = null;
+  state.toolCards.clear();
+  state.toolActivities.clear();
   setStatus("idle");
   renderEmpty();
+  els.skillOptions.querySelectorAll("input").forEach((input) => {
+    input.checked = false;
+  });
   updatePromptState();
 });
 
@@ -82,6 +97,10 @@ function updatePromptState() {
   const usesCustomPrompt = !els.agentRole.value.trim();
   els.agentPrompt.disabled = hasThread || !usesCustomPrompt;
   els.agentPrompt.closest("label").classList.toggle("disabled", els.agentPrompt.disabled);
+  els.skillOptions.querySelectorAll("input").forEach((input) => {
+    input.disabled = hasThread;
+  });
+  els.skillOptions.classList.toggle("disabled", hasThread);
   if (hasThread) {
     els.agentPrompt.placeholder = "已有 Thread ID 时沿用创建会话时的系统提示词";
   } else if (usesCustomPrompt) {
@@ -116,7 +135,7 @@ function buildRunBody(text, imageUrl) {
   const body = {
     user_id: els.userId.value.trim(),
     thread_id: threadId || null,
-    stream: els.streamMode.checked,
+    stream: true,
     content,
   };
 
@@ -125,8 +144,48 @@ function buildRunBody(text, imageUrl) {
     if (!agentRole) {
       body.agent_prompt = els.agentPrompt.value.trim();
     }
+    body.active_skill_ids = selectedSkillIds();
   }
   return body;
+}
+
+async function loadSkills() {
+  try {
+    const response = await fetch("/v1/skills");
+    const data = await readJson(response);
+    renderSkills(data.skills || []);
+  } catch (err) {
+    els.skillOptions.textContent = `技能列表加载失败：${err.message || String(err)}`;
+  }
+}
+
+function renderSkills(skills) {
+  els.skillOptions.innerHTML = "";
+  if (!skills.length) {
+    els.skillOptions.textContent = "当前没有可用技能。";
+    return;
+  }
+  for (const skill of skills) {
+    const label = document.createElement("label");
+    label.className = "skill-option";
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = skill.id;
+    input.checked = Boolean(skill.enabled_by_default) || skill.id === "enterprise-policy";
+    const text = document.createElement("span");
+    const name = document.createElement("strong");
+    name.textContent = skill.name;
+    const description = document.createElement("small");
+    description.textContent = skill.description;
+    text.append(name, description);
+    label.append(input, text);
+    els.skillOptions.appendChild(label);
+  }
+  updatePromptState();
+}
+
+function selectedSkillIds() {
+  return [...els.skillOptions.querySelectorAll("input:checked")].map((input) => input.value);
 }
 
 async function runJson(body) {
@@ -184,11 +243,14 @@ function handleSseEvent(rawEvent) {
   } else if (event === "message.delta") {
     appendAssistantDelta(data.text || "");
   } else if (event === "tool.call.started") {
-    appendMessage("tool", `调用工具 ${data.tool_type || ""}`);
+    finishAssistantBlock();
+    appendToolCall(data, "running");
   } else if (event === "tool.call.completed") {
-    appendMessage("tool", `工具完成 ${data.tool_type || ""}`);
+    finishAssistantBlock();
+    appendToolCall(data, "completed");
   } else if (event === "tool.call.failed") {
-    appendMessage("error", data.error?.message || "工具调用失败");
+    finishAssistantBlock();
+    appendToolCall(data, "failed");
   } else if (event === "run.completed") {
     applyRunMeta(data);
     setStatus("completed");
@@ -234,6 +296,12 @@ function appendAssistantDelta(text) {
   scrollMessages();
 }
 
+function finishAssistantBlock() {
+  // A tool event separates the model's execution narration from the next
+  // assistant response segment, so later deltas must not append to it.
+  state.assistantNode = null;
+}
+
 function appendMessage(role, text) {
   clearEmpty();
   const item = document.createElement("article");
@@ -250,8 +318,163 @@ function appendMessage(role, text) {
   return item;
 }
 
+function appendToolCall(data, status) {
+  const toolType = data.tool_type || "unknown_tool";
+  if (!isSearchTool(toolType)) {
+    appendToolActivity(data, status);
+    return;
+  }
+
+  const callId = data.tool_call_id || `${toolType}-${Date.now()}`;
+  let item = state.toolCards.get(callId);
+  if (!item) {
+    item = createToolCard(toolType);
+    state.toolCards.set(callId, item);
+  }
+  updateToolCard(item, data, status);
+  scrollMessages();
+}
+
+function appendToolActivity(data, status) {
+  const toolType = data.tool_type || "unknown_tool";
+  const callId = data.tool_call_id || `${toolType}-${Date.now()}`;
+  let item = state.toolActivities.get(callId);
+  if (!item) {
+    clearEmpty();
+    item = document.createElement("div");
+    item.className = "tool-activity";
+    els.messages.appendChild(item);
+    state.toolActivities.set(callId, item);
+  }
+  const labels = {
+    read_file: ["正在读取参考资料", "已读取参考资料"],
+    unknown_tool: ["正在准备工具", "工具已完成"],
+  };
+  const [runningLabel, completedLabel] = labels[toolType] || ["正在使用辅助工具", "辅助工具已完成"];
+  item.classList.toggle("failed", status === "failed");
+  item.textContent = status === "failed"
+    ? `· ${data.error?.message || "辅助工具调用失败"}`
+    : `· ${status === "running" ? runningLabel : completedLabel}`;
+  scrollMessages();
+}
+
+function isSearchTool(toolType) {
+  return toolType === "bocha_search" || toolType === "search_enterprise_policy";
+}
+
+function createToolCard(toolType) {
+  clearEmpty();
+  const item = document.createElement("article");
+  item.className = "message tool tool-search";
+  const title = document.createElement("div");
+  title.className = "message-role";
+  const details = document.createElement("details");
+  details.className = "tool-details";
+  const summary = document.createElement("summary");
+  const content = document.createElement("div");
+  content.className = "tool-result";
+  details.append(summary, content);
+  item.append(title, details);
+  item.dataset.toolType = toolType;
+  els.messages.appendChild(item);
+  return item;
+}
+
+function updateToolCard(item, data, status) {
+  const toolType = item.dataset.toolType;
+  const toolName = toolType === "bocha_search" ? "联网搜索" : "企业制度知识库";
+  const labels = { running: "搜索中", completed: "搜索完成", failed: "搜索失败" };
+  item.classList.toggle("error", status === "failed");
+  item.querySelector(".message-role").textContent = `${toolName} · ${labels[status]}`;
+
+  const summary = item.querySelector("summary");
+  const content = item.querySelector(".tool-result");
+  content.replaceChildren();
+  if (status === "running") {
+    summary.textContent = "查看搜索内容";
+    renderArguments(content, data.arguments || {});
+  } else if (status === "completed") {
+    summary.textContent = "查看搜索结果";
+    renderSearchResults(content, data.result, toolType);
+  } else {
+    summary.textContent = "查看失败详情";
+    const message = document.createElement("p");
+    message.textContent = data.error?.message || "工具调用失败";
+    content.appendChild(message);
+  }
+}
+
+function renderArguments(container, arguments_) {
+  const query = arguments_.query || "未提供搜索词";
+  const queryLine = document.createElement("p");
+  queryLine.className = "tool-query";
+  queryLine.textContent = `搜索：${query}`;
+  container.appendChild(queryLine);
+
+  const options = Object.entries(arguments_).filter(([key]) => key !== "query");
+  if (!options.length) return;
+  const meta = document.createElement("p");
+  meta.className = "tool-meta";
+  meta.textContent = options.map(([key, value]) => `${key}: ${formatValue(value)}`).join(" · ");
+  container.appendChild(meta);
+}
+
+function renderSearchResults(container, result, toolType) {
+  const results = Array.isArray(result?.results) ? result.results : [];
+  const query = result?.query;
+  if (query) renderArguments(container, { query });
+  if (!results.length) {
+    const empty = document.createElement("p");
+    empty.textContent = "没有返回可展示的检索结果。";
+    container.appendChild(empty);
+    return;
+  }
+  const list = document.createElement("ol");
+  list.className = "search-results";
+  for (const resultItem of results) {
+    const row = document.createElement("li");
+    const title = document.createElement("strong");
+    title.textContent = resultItem.title || "未命名结果";
+    row.appendChild(title);
+    if (toolType === "bocha_search" && resultItem.url) {
+      const link = document.createElement("a");
+      link.href = resultItem.url;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = resultItem.site_name || resultItem.url;
+      row.appendChild(link);
+    } else if (resultItem.source_article || resultItem.source_pages || resultItem.file_id) {
+      const source = document.createElement("span");
+      source.className = "tool-meta";
+      source.textContent = [resultItem.source_article, formatPages(resultItem.source_pages), resultItem.file_id].filter(Boolean).join(" · ");
+      row.appendChild(source);
+    }
+    const excerpt = resultItem.snippet || resultItem.content;
+    if (excerpt) {
+      const text = document.createElement("p");
+      text.textContent = excerpt;
+      row.appendChild(text);
+    }
+    list.appendChild(row);
+  }
+  container.appendChild(list);
+}
+
+function formatPages(pages) {
+  return Array.isArray(pages) && pages.length ? `页码：${pages.join(", ")}` : "";
+}
+
+function formatValue(value) {
+  return Array.isArray(value) ? value.join(", ") : String(value);
+}
+
+function setSettingsOpen(open) {
+  els.settingsPanel.classList.toggle("open", open);
+  els.settingsToggle.setAttribute("aria-expanded", String(open));
+}
+
 function renderEmpty() {
-  els.messages.innerHTML = '<div class="empty">创建新会话时可选择角色，也可以选择 custom prompt 并填写独立系统提示词。</div>';
+  els.messages.innerHTML = '<div class="empty">向我提问公司的请假、报销、审批流程或其他制度问题，我会检索已启用的制度资料并给出依据。</div>';
 }
 
 function clearEmpty() {
@@ -264,14 +487,27 @@ function scrollMessages() {
 }
 
 function setStatus(status) {
-  els.status.textContent = status;
+  const labels = {
+    idle: "等待提问",
+    ready: "准备就绪",
+    running: "正在查询",
+    completed: "已完成",
+    failed: "查询失败",
+    unhealthy: "服务异常",
+    offline: "服务未连接",
+  };
+  els.status.textContent = labels[status] || status;
+  const configStatus = document.querySelector("#configStatus");
+  if (configStatus) configStatus.textContent = status;
 }
 
 function setBusy(busy, status) {
   els.send.disabled = busy;
   els.agentRole.disabled = busy;
   els.threadId.disabled = busy;
-  els.streamMode.disabled = busy;
+  els.skillOptions.querySelectorAll("input").forEach((input) => {
+    input.disabled = busy || Boolean(els.threadId.value.trim());
+  });
   if (status) setStatus(status);
   updatePromptState();
 }

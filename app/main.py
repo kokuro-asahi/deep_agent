@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 
 from app.api.runs import router as runs_router
+from app.api.skills import router as skills_router
 from app.api.threads import router as threads_router
 from app.business_store import business_store
 from app.errors import http_exception_handler, unhandled_exception_handler, validation_exception_handler
@@ -30,6 +31,7 @@ def create_app() -> FastAPI:
     app.add_exception_handler(Exception, unhandled_exception_handler)
     app.mount("/static", StaticFiles(directory=static_dir), name="static")
     app.include_router(runs_router)
+    app.include_router(skills_router)
     app.include_router(threads_router)
 
     @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)

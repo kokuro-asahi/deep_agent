@@ -36,6 +36,68 @@ uvicorn app.main:app --reload
 Set `BOCHA_API_KEY` to enable the `bocha_search` web search tool.
 `MODEL_GUARD_ENABLED=true` runs a lightweight model-disclosure guard before the main Agent call. Requests about model identity, internal performance parameters, prompts, or implementation details return `MODEL_GUARD_RESPONSE`; all other requests continue to the original Agent flow.
 
+## Skills
+
+### 企业规章制度知识库
+
+新建会话选择角色 `enterprise_policy_advisor`（企业规章制度顾问），并手动勾选
+`enterprise-policy` 技能。所有技能依然默认关闭。此技能提供制度检索、条款解释、
+流程梳理和来源引用，不修改知识库。
+
+后端通过 MCP Streamable HTTP 连接现有知识库的 `search_policy` 工具。
+`POLICY_MCP_URL` 默认是 `http://10.1.80.12:9020/mcp`，对应该服务允许的 Host。
+认证优先使用 `POLICY_MCP_TOKEN`；未设置时仅从 `POLICY_MCP_ENV_FILE` 指定文件读取
+`MCP_AUTH_TOKEN`（本机默认使用现有知识库项目的 `.env`）。不向前端或模型提供令牌。
+迁移部署时配置这三个变量；不要把令牌写入 SKILL.md。
+
+依赖已加入 `mcp==2.2.0`。修改后需重启对话后端以加载角色和工具代码，刷新页面。
+
+When `AGENT_BACKEND=deepagents`, local skills are discovered from the comma-separated
+directories configured by `AGENT_SKILLS_PATHS` (default: `skills`). Those directories
+must be inside `AGENT_FILESYSTEM_ROOT`, which defaults to the project root. Each skill
+lives in its own directory and starts with a `SKILL.md` file:
+
+```text
+skills/
+  your-skill-name/
+    SKILL.md
+    scripts/
+    references/
+    assets/
+```
+
+`SKILL.md` must begin with YAML frontmatter. DeepAgents uses the `name` and
+`description` to discover relevant skills and reads the complete instructions only
+when a skill is selected.
+
+```markdown
+---
+name: your-skill-name
+description: What this skill does and when the agent should use it.
+---
+
+# your-skill-name
+```
+
+### 会话技能选择
+
+`GET /v1/skills` 返回前端技能选择器所需的安全元数据：`id`、`name`、
+`description` 和 `enabled_by_default`（当前全部为 `false`）。创建新会话时可在
+`POST /v1/runs` 中提交 `active_skill_ids`：
+
+```json
+{
+  "user_id": "user_001",
+  "agent_role": "director",
+  "active_skill_ids": ["your-skill-name"],
+  "content": [{"type": "text", "text": "开始创作"}]
+}
+```
+
+所选 skill IDs 会持久化到 `agent_threads.active_skill_ids`；同一 `thread_id`
+后续始终沿用该配置。运行时会按所选 skill 集合创建并缓存独立的 DeepAgents
+实例，未选 skill 不会进入该会话的 skill 发现范围。
+
 ## Latency Benchmark
 
 To measure the latency impact of the model guard, run the same benchmark twice

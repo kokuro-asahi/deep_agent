@@ -3,18 +3,19 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Agent 对话测试台</title>
+    <title>企业制度助手</title>
     <link rel="stylesheet" href="/static/styles.css" />
   </head>
   <body>
     <main class="shell">
-      <aside class="sidebar">
+      <aside id="settingsPanel" class="sidebar" aria-label="会话设置">
         <header class="brand">
-          <div class="brand-mark">AI</div>
+          <div class="brand-mark">律</div>
           <div>
-            <h1>Agent Chat</h1>
-            <p>主对话接口测试台</p>
+            <h1>企业制度助手</h1>
+            <p>会话设置</p>
           </div>
+          <button id="closeSettings" class="icon-button close-settings" type="button" aria-label="关闭设置">×</button>
         </header>
 
         <section class="panel">
@@ -31,6 +32,7 @@
           <label>
             <span>Agent Role</span>
             <select id="agentRole">
+              <option value="enterprise_policy_advisor" selected>企业规章制度顾问</option>
               <option value="">自定义提示词 / custom prompt</option>
               <option value="director">director</option>
               <option value="cinematographer">cinematographer</option>
@@ -49,15 +51,17 @@
             ></textarea>
           </label>
 
-          <label class="toggle">
-            <input id="streamMode" type="checkbox" checked />
-            <span>流式响应</span>
-          </label>
+          <section class="skill-picker" aria-labelledby="skillPickerLabel">
+            <span id="skillPickerLabel">激活技能</span>
+            <p>默认关闭；仅在创建新会话时可选择。</p>
+            <div id="skillOptions" class="skill-options">正在加载技能列表…</div>
+          </section>
+
         </section>
 
         <section class="panel actions">
-          <button id="newThread" type="button">新会话</button>
-          <button id="fillPrompt" type="button">填入示例提示词</button>
+          <button id="newThread" type="button">开始新会话</button>
+          <button id="fillPrompt" class="secondary-button" type="button">使用自定义提示词</button>
         </section>
 
         <section class="panel meta">
@@ -67,24 +71,38 @@
           </div>
           <div>
             <span>Status</span>
-            <strong id="status">idle</strong>
+            <strong id="configStatus">idle</strong>
           </div>
         </section>
       </aside>
 
       <section class="workspace">
+        <header class="topbar">
+          <div class="topbar-brand">
+            <div class="brand-mark">律</div>
+            <div>
+              <strong>企业制度助手</strong>
+              <span id="status">准备就绪</span>
+            </div>
+          </div>
+          <div class="topbar-actions">
+            <button id="topNewThread" class="text-button" type="button">新对话</button>
+            <button id="settingsToggle" class="text-button" type="button" aria-expanded="false">会话设置</button>
+          </div>
+        </header>
         <div id="messages" class="messages"></div>
 
         <form id="composer" class="composer">
-          <textarea id="prompt" rows="3" placeholder="输入消息"></textarea>
+          <textarea id="prompt" rows="2" placeholder="请输入制度、流程或条款相关问题"></textarea>
           <div class="composer-row">
-            <input id="imageUrl" placeholder="图片 URL，可选" autocomplete="off" />
-            <button id="send" type="submit">发送</button>
+            <input id="imageUrl" placeholder="图片 URL（可选）" autocomplete="off" />
+            <button id="send" type="submit">发送 <span>↑</span></button>
           </div>
+          <p class="composer-hint">回答仅供制度查询参考，请以公司正式制度及审批结果为准。</p>
         </form>
       </section>
     </main>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=20260921-demo-product"></script>
   </body>
 </html>

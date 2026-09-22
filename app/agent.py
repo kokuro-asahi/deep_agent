@@ -17,14 +17,12 @@ class AgentClient:
         self.settings = settings
         self._agent = None
 
-    def _ensure_agent(self) -> Any:
+    def _ensure_agent(self, active_skill_ids: list[str]) -> Any:
         if self.settings.agent_backend == "echo":
             return None
         if self.settings.agent_backend != "deepagents":
             raise ValueError(f"Unsupported AGENT_BACKEND: {self.settings.agent_backend}")
-        if runtime.agent is None:
-            runtime.start()
-        return runtime.agent
+        return runtime.get_agent(active_skill_ids)
 
     async def ainvoke(
         self,
@@ -32,6 +30,7 @@ class AgentClient:
         user_id: str,
         thread_id: str,
         context_version: int,
+        active_skill_ids: list[str],
     ) -> dict[str, Any]:
         if self.settings.agent_backend == "echo":
             text = _last_user_text(messages)
@@ -40,7 +39,7 @@ class AgentClient:
                 "usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
             }
 
-        agent = self._ensure_agent()
+        agent = self._ensure_agent(active_skill_ids)
         result = await to_thread(
             agent.invoke,
             {"messages": messages},
@@ -56,8 +55,9 @@ class AgentClient:
         user_id: str,
         thread_id: str,
         context_version: int,
+        active_skill_ids: list[str],
     ) -> AsyncIterator[str]:
-        async for event in self.astream_events(messages, user_id, thread_id, context_version):
+        async for event in self.astream_events(messages, user_id, thread_id, context_version, active_skill_ids):
             if event["type"] == "text":
                 yield event["text"]
 
@@ -67,6 +67,7 @@ class AgentClient:
         user_id: str,
         thread_id: str,
         context_version: int,
+        active_skill_ids: list[str],
     ) -> AsyncIterator[dict[str, Any]]:
         if self.settings.agent_backend == "echo":
             response = f"Echo: {_last_user_text(messages)}"
@@ -74,7 +75,7 @@ class AgentClient:
                 yield {"type": "text", "text": chunk}
             return
 
-        agent = self._ensure_agent()
+        agent = self._ensure_agent(active_skill_ids)
         stream = agent.stream(
             {"messages": messages},
             runtime.config(user_id, thread_id, context_version),
@@ -160,6 +161,8 @@ def _normalize_agent_result(result: Any) -> dict[str, Any]:
 
 def _extract_stream_text(event: Any) -> str:
     candidate = _candidate_message(event)
+    if _should_suppress_stream_text(_event_metadata(event)):
+        return ""
     message_type = getattr(candidate, "type", None)
     class_name = candidate.__class__.__name__
     if message_type not in {"ai", "AIMessageChunk"} and class_name not in {"AIMessage", "AIMessageChunk"}:
@@ -168,7 +171,15 @@ def _extract_stream_text(event: Any) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
-        return "".join(block.get("text", "") for block in content if isinstance(block, dict))
+        # Providers may include reasoning/thinking blocks in a multimodal response.
+        # Only explicit final-output text blocks belong in the client-facing stream.
+        return "".join(
+            block["text"]
+            for block in content
+            if isinstance(block, dict)
+            and block.get("type") in {"text", "output_text"}
+            and isinstance(block.get("text"), str)
+        )
     return ""
 
 
@@ -176,6 +187,32 @@ def _candidate_message(event: Any) -> Any:
     if isinstance(event, tuple) and event:
         return event[0]
     return event
+
+
+def _event_metadata(event: Any) -> dict[str, Any]:
+    if isinstance(event, tuple) and len(event) > 1 and isinstance(event[1], dict):
+        return event[1]
+    return {}
+
+
+def _should_suppress_stream_text(metadata: dict[str, Any]) -> bool:
+    """Keep tool-node output and tool summaries out of the assistant response."""
+    nested_metadata = metadata.get("metadata") if isinstance(metadata.get("metadata"), dict) else {}
+    tags = _metadata_tags(metadata.get("tags")) + _metadata_tags(metadata.get("ls_tags"))
+    nested_tags = _metadata_tags(nested_metadata.get("tags"))
+    if metadata.get("suppress_stream_text") or nested_metadata.get("suppress_stream_text"):
+        return True
+    if "tool_result_summary" in {*tags, *nested_tags}:
+        return True
+    return metadata.get("langgraph_node") == "tools"
+
+
+def _metadata_tags(value: Any) -> list[str]:
+    if isinstance(value, list):
+        return [item for item in value if isinstance(item, str)]
+    if isinstance(value, str):
+        return [value]
+    return []
 
 
 def _extract_trace_messages(messages: list[Any]) -> list[dict[str, Any]]:

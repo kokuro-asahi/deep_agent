@@ -43,6 +43,7 @@ class RunService:
             request.thread_id,
             request.agent_role,
             request.agent_prompt,
+            request.active_skill_ids,
         )
         if not thread:
             raise_thread_not_found()
@@ -50,6 +51,7 @@ class RunService:
         context_version = int(thread["context_version"])
         agent_role = thread.get("agent_role")
         agent_prompt = thread.get("agent_prompt")
+        active_skill_ids = list(thread.get("active_skill_ids") or [])
         run_id = f"run_{uuid4().hex}"
         content = _content(request)
         await _attach_request_context(run_id, request.user_id, thread_id)
@@ -156,6 +158,7 @@ class RunService:
                     request.user_id,
                     thread_id,
                     context_version,
+                    active_skill_ids,
                     input_summary={
                         "mode": "json",
                         "agent_role": agent_role,
@@ -244,6 +247,7 @@ class RunService:
             request.thread_id,
             request.agent_role,
             request.agent_prompt,
+            request.active_skill_ids,
         )
         if not thread:
             raise_thread_not_found()
@@ -252,6 +256,7 @@ class RunService:
         context_version = int(thread["context_version"])
         agent_role = thread.get("agent_role")
         agent_prompt = thread.get("agent_prompt")
+        active_skill_ids = list(thread.get("active_skill_ids") or [])
         content = _content(request)
         await _attach_request_context(run_id, request.user_id, thread_id)
         with run_context(
@@ -379,6 +384,7 @@ class RunService:
                         request.user_id,
                         thread_id,
                         context_version,
+                        active_skill_ids,
                     ):
                         if event["type"] == "text":
                             text = event["text"]
@@ -568,7 +574,7 @@ async def _db_event(event_name: str, operation, *args, input_summary: dict[str, 
     return result
 
 
-async def _agent_invoke_event(operation, messages, user_id: str, thread_id: str, context_version: int, input_summary):
+async def _agent_invoke_event(operation, messages, user_id: str, thread_id: str, context_version: int, active_skill_ids: list[str], input_summary):
     start_time = perf_counter()
     log_agent_event(
         event_type="model",
@@ -577,7 +583,7 @@ async def _agent_invoke_event(operation, messages, user_id: str, thread_id: str,
         input_summary=input_summary,
     )
     try:
-        result = await operation(messages, user_id, thread_id, context_version)
+        result = await operation(messages, user_id, thread_id, context_version, active_skill_ids)
     except Exception as exc:
         log_agent_event(
             event_type="model",

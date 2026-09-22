@@ -54,6 +54,7 @@ class BusinessStore:
                     checkpoint_thread_id TEXT NOT NULL,
                     agent_role TEXT,
                     agent_prompt TEXT,
+                    active_skill_ids JSONB NOT NULL DEFAULT '[]'::jsonb,
                     context_version INTEGER NOT NULL DEFAULT 1,
                     last_sequence INTEGER NOT NULL DEFAULT 0,
                     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -147,6 +148,7 @@ class BusinessStore:
             conn.execute("ALTER TABLE api_request_logs DROP COLUMN IF EXISTS client_message_id")
             conn.execute("ALTER TABLE agent_event_logs DROP COLUMN IF EXISTS client_message_id")
             conn.execute("ALTER TABLE agent_threads ADD COLUMN IF NOT EXISTS agent_prompt TEXT")
+            conn.execute("ALTER TABLE agent_threads ADD COLUMN IF NOT EXISTS active_skill_ids JSONB NOT NULL DEFAULT '[]'::jsonb")
             conn.execute("ALTER TABLE agent_messages ADD COLUMN IF NOT EXISTS message_order INTEGER NOT NULL DEFAULT 0")
             conn.execute(
                 """
@@ -309,7 +311,7 @@ class BusinessStore:
         with self.connection() as conn:
             return conn.execute(
                 """
-                SELECT user_id, thread_id, checkpoint_thread_id, agent_role, agent_prompt, context_version, last_sequence
+                SELECT user_id, thread_id, checkpoint_thread_id, agent_role, agent_prompt, active_skill_ids, context_version, last_sequence
                 FROM agent_threads
                 WHERE user_id = %s AND thread_id = %s
                 """,
@@ -322,6 +324,7 @@ class BusinessStore:
         thread_id: str | None,
         agent_role: str | None,
         agent_prompt: str | None,
+        active_skill_ids: list[str],
     ) -> dict[str, Any] | None:
         if thread_id:
             return self.get_thread(user_id, thread_id)
@@ -332,14 +335,14 @@ class BusinessStore:
             row = conn.execute(
                 """
                 INSERT INTO agent_threads (
-                    user_id, thread_id, checkpoint_thread_id, agent_role, agent_prompt, context_version
+                    user_id, thread_id, checkpoint_thread_id, agent_role, agent_prompt, active_skill_ids, context_version
                 )
-                VALUES (%s, %s, %s, %s, %s, 1)
+                VALUES (%s, %s, %s, %s, %s, %s, 1)
                 ON CONFLICT (user_id, thread_id) DO UPDATE
                 SET updated_at = now()
-                RETURNING user_id, thread_id, checkpoint_thread_id, agent_role, agent_prompt, context_version, last_sequence
+                RETURNING user_id, thread_id, checkpoint_thread_id, agent_role, agent_prompt, active_skill_ids, context_version, last_sequence
                 """,
-                (user_id, new_thread_id, checkpoint_thread_id, agent_role, agent_prompt if agent_role is None else None),
+                (user_id, new_thread_id, checkpoint_thread_id, agent_role, agent_prompt if agent_role is None else None, Jsonb(active_skill_ids)),
             ).fetchone()
             conn.commit()
             return row

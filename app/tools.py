@@ -180,8 +180,13 @@ def _parse_bocha_content(content: Any) -> Any:
     return content
 
 
-def get_agent_tools() -> list[Callable[..., Any]]:
-    return [
+def get_agent_tools(active_skill_ids: tuple[str, ...] = ()) -> list[Callable[..., Any]]:
+    tools = [
         get_current_time,
         bocha_search,
     ]
+    if "enterprise-policy" in active_skill_ids:
+        from app.policy_kb import search_enterprise_policy
+
+        tools.append(search_enterprise_policy)
+    return tools
