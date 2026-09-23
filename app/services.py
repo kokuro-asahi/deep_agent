@@ -17,6 +17,8 @@ from app.schemas import (
     RunRequest,
     RunResponse,
     ThreadMessagesResponse,
+    UserListResponse,
+    UserThreadsResponse,
     Usage,
 )
 from app.tool_sse import tool_trace_sse_event
@@ -35,6 +37,14 @@ class RunService:
         thread = await to_thread(business_store.get_thread, request.user_id, request.thread_id)
         if not thread:
             raise_thread_not_found()
+
+    async def users(self, limit: int) -> UserListResponse:
+        users = await to_thread(business_store.list_users, limit)
+        return UserListResponse(users=users)
+
+    async def threads(self, user_id: str, limit: int) -> UserThreadsResponse:
+        threads = await to_thread(business_store.list_threads, user_id, limit)
+        return UserThreadsResponse(user_id=user_id, threads=threads)
 
     async def run_json(self, request: RunRequest) -> RunResponse:
         thread = await to_thread(

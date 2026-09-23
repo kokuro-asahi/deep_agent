@@ -124,3 +124,19 @@ class ThreadMessagesResponse(BaseModel):
     total_messages: int
     has_more: bool
     messages: list[ConversationMessage]
+
+
+class UserListResponse(BaseModel):
+    users: list[str]
+
+
+class ThreadSummary(BaseModel):
+    thread_id: str
+    title: str
+    agent_role: str | None = None
+    updated_at: datetime
+
+
+class UserThreadsResponse(BaseModel):
+    user_id: str
+    threads: list[ThreadSummary]

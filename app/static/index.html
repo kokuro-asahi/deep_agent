@@ -1,108 +1,25 @@
 <!doctype html>
 <html lang="zh-CN">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>企业制度助手</title>
-    <link rel="stylesheet" href="/static/styles.css" />
-  </head>
+  <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>Orbis — Agent Workspace</title><link rel="stylesheet" href="/static/styles.css" /></head>
   <body>
     <main class="shell">
-      <aside id="settingsPanel" class="sidebar" aria-label="会话设置">
-        <header class="brand">
-          <div class="brand-mark">律</div>
-          <div>
-            <h1>企业制度助手</h1>
-            <p>会话设置</p>
-          </div>
-          <button id="closeSettings" class="icon-button close-settings" type="button" aria-label="关闭设置">×</button>
-        </header>
-
-        <section class="panel">
-          <label>
-            <span>User ID</span>
-            <input id="userId" value="user_test" autocomplete="off" />
-          </label>
-
-          <label>
-            <span>Thread ID</span>
-            <input id="threadId" placeholder="留空创建新会话" autocomplete="off" />
-          </label>
-
-          <label>
-            <span>Agent Role</span>
-            <select id="agentRole">
-              <option value="enterprise_policy_advisor" selected>企业规章制度顾问</option>
-              <option value="">自定义提示词 / custom prompt</option>
-              <option value="director">director</option>
-              <option value="cinematographer">cinematographer</option>
-              <option value="art_director">art_director</option>
-              <option value="screenwriter">screenwriter</option>
-              <option value="storyboard_artist">storyboard_artist</option>
-            </select>
-          </label>
-
-          <label>
-            <span>Agent Prompt</span>
-            <textarea
-              id="agentPrompt"
-              rows="7"
-              placeholder="选择 custom prompt 且 Thread ID 为空时，这里会作为新会话的系统提示词"
-            ></textarea>
-          </label>
-
-          <section class="skill-picker" aria-labelledby="skillPickerLabel">
-            <span id="skillPickerLabel">激活技能</span>
-            <p>默认关闭；仅在创建新会话时可选择。</p>
-            <div id="skillOptions" class="skill-options">正在加载技能列表…</div>
-          </section>
-
-        </section>
-
-        <section class="panel actions">
-          <button id="newThread" type="button">开始新会话</button>
-          <button id="fillPrompt" class="secondary-button" type="button">使用自定义提示词</button>
-        </section>
-
-        <section class="panel meta">
-          <div>
-            <span>Run</span>
-            <strong id="runId">-</strong>
-          </div>
-          <div>
-            <span>Status</span>
-            <strong id="configStatus">idle</strong>
-          </div>
-        </section>
+      <aside class="app-sidebar" aria-label="工作区导航">
+        <header class="sidebar-brand"><div class="rancy-mark"><span>✦</span><i></i><i></i></div><div class="brand-copy"><strong>rancy_agent</strong><label><span>当前 Agent</span><select id="sidebarAgentRole" aria-label="选择 Agent 角色"><option value="enterprise_policy_advisor" selected>企业规章制度顾问</option><option value="director">导演创作助手</option><option value="cinematographer">摄影指导</option><option value="art_director">美术指导</option><option value="screenwriter">编剧助手</option><option value="storyboard_artist">分镜设计师</option><option value="">自定义 Agent</option></select></label></div></header>
+        <button id="topNewThread" class="new-chat" type="button"><span>＋</span> 新建对话 <kbd>⌘ K</kbd></button>
+        <nav class="conversation-nav" aria-label="对话列表">
+          <div class="nav-heading"><span>最近对话</span><button type="button" aria-label="更多对话">•••</button></div>
+          <div class="conversation active"><span class="conversation-dot teal"></span><span>新的 Agent 对话</span><button type="button" aria-label="对话菜单">•••</button></div>
+          <div class="conversation"><span class="conversation-dot violet"></span><span>内容策略与规划</span></div><div class="conversation"><span class="conversation-dot amber"></span><span>产品需求梳理</span></div><div class="conversation"><span class="conversation-dot blue"></span><span>研究资料总结</span></div>
+        </nav>
+        <footer class="sidebar-footer"><div class="user-switcher"><button id="sidebarSettings" class="account-button" type="button" aria-expanded="false"><span id="userAvatar" class="avatar">?</span><span><strong id="currentUserName">未登录</strong><small>切换用户</small></span><b>⌄</b></button><div id="userMenu" class="user-menu"><label>选择用户<input id="userSearch" placeholder="输入 User ID" autocomplete="off" /></label><div id="userOptions" class="user-options">正在加载用户…</div></div></div></footer>
       </aside>
-
       <section class="workspace">
-        <header class="topbar">
-          <div class="topbar-brand">
-            <div class="brand-mark">律</div>
-            <div>
-              <strong>企业制度助手</strong>
-              <span id="status">准备就绪</span>
-            </div>
-          </div>
-          <div class="topbar-actions">
-            <button id="topNewThread" class="text-button" type="button">新对话</button>
-            <button id="settingsToggle" class="text-button" type="button" aria-expanded="false">会话设置</button>
-          </div>
-        </header>
+        <header class="topbar"><div class="agent-identity"><div class="agent-orb"><span>✦</span></div><div><strong id="agentTitle">通用 Agent</strong><span><i id="statusDot"></i><em id="status">准备就绪</em></span></div><button class="agent-menu" type="button" aria-label="切换 Agent">⌄</button></div><div class="topbar-actions"><button id="clearChat" class="round-button" type="button" aria-label="新建对话">＋</button><button id="settingsTop" class="top-settings" type="button">配置 Agent <span>⚙</span></button></div></header>
         <div id="messages" class="messages"></div>
-
-        <form id="composer" class="composer">
-          <textarea id="prompt" rows="2" placeholder="请输入制度、流程或条款相关问题"></textarea>
-          <div class="composer-row">
-            <input id="imageUrl" placeholder="图片 URL（可选）" autocomplete="off" />
-            <button id="send" type="submit">发送 <span>↑</span></button>
-          </div>
-          <p class="composer-hint">回答仅供制度查询参考，请以公司正式制度及审批结果为准。</p>
-        </form>
+        <form id="composer" class="composer"><div class="composer-box"><textarea id="prompt" rows="1" placeholder="给 Agent 发送消息…"></textarea><div class="composer-tools"><div class="composer-tools-left"><button class="tool-button" type="button" aria-label="添加附件">＋</button><button id="imageToggle" class="tool-button image-tool" type="button" aria-label="添加图片链接">▧</button><button class="mode-chip" type="button">深度思考 <span>⌄</span></button></div><div class="composer-tools-right"><span class="shortcut-hint">⌘ ↵ 发送</span><button id="send" type="submit" aria-label="发送消息">↑</button></div></div></div><input id="imageUrl" class="image-url" placeholder="粘贴图片 URL 后发送" autocomplete="off" /><p class="composer-hint">Agent 可能会出错，请核对重要信息。</p></form>
       </section>
-    </main>
-
-    <script src="/static/app.js?v=20260921-demo-product"></script>
+      <aside id="settingsPanel" class="sidebar settings-sidebar" aria-label="Agent 配置"><header class="settings-header"><div><span>WORKSPACE</span><h1>Agent 配置</h1></div><button id="closeSettings" class="close-settings" type="button" aria-label="关闭设置">×</button></header><section class="settings-intro"><div class="agent-orb"><span>✦</span></div><div><strong>通用 Agent</strong><p>可按任务配置角色、指令和技能。</p></div></section><section class="panel"><label><span>User ID</span><input id="userId" placeholder="请先登录" readonly autocomplete="off" /></label><label><span>Thread ID</span><input id="threadId" placeholder="新对话会自动创建" autocomplete="off" /></label><label><span>Agent Role</span><select id="agentRole"><option value="enterprise_policy_advisor" selected>企业规章制度顾问</option><option value="">自定义提示词 / custom prompt</option><option value="director">导演创作助手</option><option value="cinematographer">摄影指导</option><option value="art_director">美术指导</option><option value="screenwriter">编剧助手</option><option value="storyboard_artist">分镜设计师</option></select></label><label><span>系统指令</span><textarea id="agentPrompt" rows="5" placeholder="选择自定义提示词后，在此描述 Agent 的职责和回答方式"></textarea></label></section><section class="panel skill-picker" aria-labelledby="skillPickerLabel"><div class="section-label"><span id="skillPickerLabel">启用技能</span><small>只在新建对话时可选</small></div><div id="skillOptions" class="skill-options">正在加载技能列表…</div></section><section class="panel actions"><button id="newThread" type="button">开始新的对话</button><button id="fillPrompt" class="secondary-button" type="button">使用示例指令</button></section><section class="panel meta"><div><span>Run</span><strong id="runId">-</strong></div><div><span>状态</span><strong id="configStatus">idle</strong></div></section></aside><div id="settingsBackdrop" class="settings-backdrop"></div>
+      <div id="loginOverlay" class="login-overlay" role="dialog" aria-modal="true" aria-labelledby="loginTitle"><form id="loginForm" class="login-card"><div class="orb-mark"><i></i><i></i><i></i></div><p>ORBiS WORKSPACE</p><h1 id="loginTitle">登录你的工作区</h1><span>输入 User ID 以加载你的 Agent 对话历史。</span><label>User ID<input id="loginUserId" required placeholder="例如 user_test" autocomplete="username" autofocus /></label><button type="submit">进入工作区 <b>→</b></button></form></div>
+    </main><script src="/static/app.js?v=20260922-agent-workspace"></script>
   </body>
 </html>

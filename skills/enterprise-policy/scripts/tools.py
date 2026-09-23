@@ -1,4 +1,4 @@
-"""Read-only bridge to the enterprise policy Streamable HTTP MCP server."""
+"""Read-only MCP tool supplied by the enterprise-policy skill."""
 
 import asyncio
 import json
@@ -62,3 +62,8 @@ def search_enterprise_policy(
     except Exception as exc:
         # Do not expose authentication headers or upstream configuration in tool output.
         raise RuntimeError("企业制度知识库暂时无法查询，请检查 MCP 连接、认证和服务日志") from exc
+
+
+def get_tools() -> list[object]:
+    """Return the tool functions to register when this skill is enabled."""
+    return [search_enterprise_policy]

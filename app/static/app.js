@@ -2,18 +2,34 @@ const els = {
   userId: document.querySelector("#userId"),
   threadId: document.querySelector("#threadId"),
   agentRole: document.querySelector("#agentRole"),
+  sidebarAgentRole: document.querySelector("#sidebarAgentRole"),
   agentPrompt: document.querySelector("#agentPrompt"),
   skillOptions: document.querySelector("#skillOptions"),
   runId: document.querySelector("#runId"),
   status: document.querySelector("#status"),
+  statusDot: document.querySelector("#statusDot"),
+  agentTitle: document.querySelector("#agentTitle"),
   settingsPanel: document.querySelector("#settingsPanel"),
-  settingsToggle: document.querySelector("#settingsToggle"),
+  settingsToggle: document.querySelector("#settingsTop"),
+  sidebarSettings: document.querySelector("#sidebarSettings"),
+  settingsBackdrop: document.querySelector("#settingsBackdrop"),
+  userMenu: document.querySelector("#userMenu"),
+  userSearch: document.querySelector("#userSearch"),
+  userOptions: document.querySelector("#userOptions"),
+  currentUserName: document.querySelector("#currentUserName"),
+  userAvatar: document.querySelector("#userAvatar"),
+  conversationNav: document.querySelector(".conversation-nav"),
+  loginOverlay: document.querySelector("#loginOverlay"),
+  loginForm: document.querySelector("#loginForm"),
+  loginUserId: document.querySelector("#loginUserId"),
   closeSettings: document.querySelector("#closeSettings"),
   topNewThread: document.querySelector("#topNewThread"),
+  clearChat: document.querySelector("#clearChat"),
   messages: document.querySelector("#messages"),
   composer: document.querySelector("#composer"),
   prompt: document.querySelector("#prompt"),
   imageUrl: document.querySelector("#imageUrl"),
+  imageToggle: document.querySelector("#imageToggle"),
   send: document.querySelector("#send"),
   newThread: document.querySelector("#newThread"),
   fillPrompt: document.querySelector("#fillPrompt"),
@@ -23,6 +39,7 @@ const state = {
   assistantNode: null,
   toolCards: new Map(),
   toolActivities: new Map(),
+  users: [],
 };
 
 const EXAMPLE_PROMPT = "你是一个专业影视创作助手。回答要简洁，优先给出可执行方案；涉及分镜时输出镜号、景别、镜头运动和画面描述。";
@@ -33,10 +50,36 @@ checkHealth();
 loadSkills();
 
 els.agentRole.addEventListener("change", updatePromptState);
+els.sidebarAgentRole.addEventListener("change", () => {
+  els.agentRole.value = els.sidebarAgentRole.value;
+  updatePromptState();
+});
 els.threadId.addEventListener("input", updatePromptState);
 els.settingsToggle.addEventListener("click", () => setSettingsOpen(true));
+els.sidebarSettings.addEventListener("click", toggleUserMenu);
 els.closeSettings.addEventListener("click", () => setSettingsOpen(false));
+els.settingsBackdrop.addEventListener("click", () => setSettingsOpen(false));
 els.topNewThread.addEventListener("click", () => els.newThread.click());
+els.clearChat.addEventListener("click", () => els.newThread.click());
+els.imageToggle.addEventListener("click", () => {
+  els.imageUrl.classList.toggle("show");
+  if (els.imageUrl.classList.contains("show")) els.imageUrl.focus();
+});
+els.prompt.addEventListener("input", autoResizePrompt);
+els.prompt.addEventListener("keydown", (event) => {
+  if ((event.metaKey || event.ctrlKey) && event.key === "Enter") els.composer.requestSubmit();
+});
+els.userSearch.addEventListener("keydown", (event) => {
+  if (event.key === "Enter" && els.userSearch.value.trim()) selectUser(els.userSearch.value.trim());
+});
+els.loginForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const userId = els.loginUserId.value.trim();
+  if (!userId) return;
+  await selectUser(userId);
+  els.loginOverlay.classList.add("hidden");
+  els.prompt.focus();
+});
 
 els.newThread.addEventListener("click", () => {
   els.threadId.value = "";
@@ -50,6 +93,7 @@ els.newThread.addEventListener("click", () => {
     input.checked = false;
   });
   updatePromptState();
+  els.prompt.focus();
 });
 
 els.fillPrompt.addEventListener("click", () => {
@@ -97,6 +141,7 @@ function updatePromptState() {
   const usesCustomPrompt = !els.agentRole.value.trim();
   els.agentPrompt.disabled = hasThread || !usesCustomPrompt;
   els.agentPrompt.closest("label").classList.toggle("disabled", els.agentPrompt.disabled);
+  els.sidebarAgentRole.disabled = hasThread || els.agentRole.disabled;
   els.skillOptions.querySelectorAll("input").forEach((input) => {
     input.disabled = hasThread;
   });
@@ -108,6 +153,9 @@ function updatePromptState() {
   } else {
     els.agentPrompt.placeholder = "选择 custom prompt 后可填写";
   }
+  const selected = els.agentRole.options[els.agentRole.selectedIndex]?.textContent || "通用 Agent";
+  els.agentTitle.textContent = usesCustomPrompt ? "自定义 Agent" : selected;
+  if (els.sidebarAgentRole.value !== els.agentRole.value) els.sidebarAgentRole.value = els.agentRole.value;
 }
 
 function validateControls() {
@@ -285,6 +333,7 @@ function applyRunMeta(data) {
     updatePromptState();
   }
   if (data.status) setStatus(data.status);
+  if (data.thread_id) loadThreads();
 }
 
 function appendAssistantDelta(text) {
@@ -470,11 +519,141 @@ function formatValue(value) {
 
 function setSettingsOpen(open) {
   els.settingsPanel.classList.toggle("open", open);
+  els.settingsBackdrop.classList.toggle("show", open);
   els.settingsToggle.setAttribute("aria-expanded", String(open));
 }
 
 function renderEmpty() {
   els.messages.innerHTML = '<div class="empty">向我提问公司的请假、报销、审批流程或其他制度问题，我会检索已启用的制度资料并给出依据。</div>';
+}
+
+async function toggleUserMenu() {
+  const open = !els.userMenu.classList.contains("open");
+  els.userMenu.classList.toggle("open", open);
+  els.sidebarSettings.setAttribute("aria-expanded", String(open));
+  if (!open) return;
+  els.userSearch.value = "";
+  await loadUsers();
+  els.userSearch.focus();
+}
+
+async function loadUsers() {
+  try {
+    const response = await fetch("/v1/threads/users");
+    const data = await readJson(response);
+    state.users = data.users || [];
+    renderUserOptions(state.users);
+  } catch (err) {
+    els.userOptions.textContent = `用户加载失败：${err.message || String(err)}`;
+  }
+}
+
+function renderUserOptions(users) {
+  els.userOptions.replaceChildren();
+  const choices = [...new Set([els.userId.value.trim(), ...users].filter(Boolean))];
+  for (const userId of choices) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "user-option";
+    button.textContent = userId;
+    button.addEventListener("click", () => selectUser(userId));
+    els.userOptions.appendChild(button);
+  }
+  if (!choices.length) els.userOptions.textContent = "暂无历史用户；可直接输入 User ID。";
+}
+
+async function selectUser(userId) {
+  els.userId.value = userId;
+  els.currentUserName.textContent = userId;
+  els.userAvatar.textContent = userId.slice(0, 2).toUpperCase();
+  els.userMenu.classList.remove("open");
+  els.sidebarSettings.setAttribute("aria-expanded", "false");
+  els.threadId.value = "";
+  els.runId.textContent = "-";
+  state.assistantNode = null;
+  state.toolCards.clear();
+  state.toolActivities.clear();
+  renderEmpty();
+  updatePromptState();
+  await loadThreads();
+}
+
+async function loadThreads() {
+  const userId = els.userId.value.trim();
+  if (!userId) return;
+  try {
+    const response = await fetch(`/v1/threads/by-user/${encodeURIComponent(userId)}`);
+    const data = await readJson(response);
+    renderThreads(data.threads || []);
+  } catch (err) {
+    renderThreads([], err.message || String(err));
+  }
+}
+
+function renderThreads(threads, error = "") {
+  const heading = document.createElement("div");
+  heading.className = "nav-heading";
+  heading.innerHTML = "<span>最近对话</span><button type=\"button\" aria-label=\"刷新对话\">↻</button>";
+  heading.querySelector("button").addEventListener("click", loadThreads);
+  els.conversationNav.replaceChildren(heading);
+  if (error) {
+    const notice = document.createElement("div");
+    notice.className = "conversation";
+    notice.textContent = "对话历史加载失败";
+    els.conversationNav.appendChild(notice);
+    return;
+  }
+  if (!threads.length) {
+    const notice = document.createElement("div");
+    notice.className = "conversation";
+    notice.textContent = "暂无对话历史";
+    els.conversationNav.appendChild(notice);
+    return;
+  }
+  for (const thread of threads) {
+    const item = document.createElement("button");
+    item.type = "button";
+    item.className = "conversation";
+    item.dataset.threadId = thread.thread_id;
+    const dot = document.createElement("span");
+    dot.className = "conversation-dot teal";
+    const title = document.createElement("span");
+    title.textContent = thread.title || "新的 Agent 对话";
+    item.append(dot, title);
+    item.addEventListener("click", () => openThread(thread));
+    els.conversationNav.appendChild(item);
+  }
+}
+
+async function openThread(thread) {
+  els.threadId.value = thread.thread_id;
+  updatePromptState();
+  state.assistantNode = null;
+  state.toolCards.clear();
+  state.toolActivities.clear();
+  els.messages.replaceChildren();
+  els.conversationNav.querySelectorAll(".conversation").forEach((item) => {
+    item.classList.toggle("active", item.dataset.threadId === thread.thread_id);
+  });
+  try {
+    const response = await fetch(`/v1/threads/${encodeURIComponent(thread.thread_id)}/messages?user_id=${encodeURIComponent(els.userId.value)}&page=1&page_size=100`);
+    const data = await readJson(response);
+    const conversations = [...(data.messages || [])].reverse();
+    for (const conversation of conversations) {
+      const userText = contentText(conversation.user?.content);
+      const assistantText = contentText(conversation.assistant?.content);
+      if (userText) appendMessage("user", userText);
+      if (assistantText) appendMessage("assistant", assistantText);
+    }
+    if (!conversations.length) renderEmpty();
+  } catch (err) {
+    appendMessage("error", `历史消息加载失败：${err.message || String(err)}`);
+  }
+}
+
+function contentText(content) {
+  if (!Array.isArray(content)) return "";
+  return content.map((item) => item.type === "text" ? item.text : item.url ? `[image] ${item.url}` : "").filter(Boolean).join("\n");
 }
 
 function clearEmpty() {
@@ -497,6 +676,7 @@ function setStatus(status) {
     offline: "服务未连接",
   };
   els.status.textContent = labels[status] || status;
+  if (els.statusDot) els.statusDot.style.background = status === "failed" || status === "offline" ? "#e16d68" : status === "running" ? "#dfaa44" : "#55bd88";
   const configStatus = document.querySelector("#configStatus");
   if (configStatus) configStatus.textContent = status;
 }
@@ -504,10 +684,16 @@ function setStatus(status) {
 function setBusy(busy, status) {
   els.send.disabled = busy;
   els.agentRole.disabled = busy;
+  els.sidebarAgentRole.disabled = busy || Boolean(els.threadId.value.trim());
   els.threadId.disabled = busy;
   els.skillOptions.querySelectorAll("input").forEach((input) => {
     input.disabled = busy || Boolean(els.threadId.value.trim());
   });
   if (status) setStatus(status);
   updatePromptState();
+}
+
+function autoResizePrompt() {
+  els.prompt.style.height = "auto";
+  els.prompt.style.height = `${Math.min(els.prompt.scrollHeight, 160)}px`;
 }

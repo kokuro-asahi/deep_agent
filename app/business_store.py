@@ -318,6 +318,48 @@ class BusinessStore:
                 (user_id, thread_id),
             ).fetchone()
 
+    def list_users(self, limit: int = 100) -> list[str]:
+        """Return user IDs that have created at least one thread, newest first."""
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT user_id, max(updated_at) AS last_active_at
+                FROM agent_threads
+                GROUP BY user_id
+                ORDER BY last_active_at DESC
+                LIMIT %s
+                """,
+                (limit,),
+            ).fetchall()
+        return [str(row["user_id"]) for row in rows]
+
+    def list_threads(self, user_id: str, limit: int = 100) -> list[dict[str, Any]]:
+        """List a user's conversations with a compact title derived from their first prompt."""
+        with self.connection() as conn:
+            return conn.execute(
+                """
+                SELECT
+                    thread.thread_id,
+                    thread.agent_role,
+                    thread.updated_at,
+                    COALESCE(prompt.title, thread.agent_role, '新的 Agent 对话') AS title
+                FROM agent_threads AS thread
+                LEFT JOIN LATERAL (
+                    SELECT COALESCE(message.content->0->>'text', '') AS title
+                    FROM agent_messages AS message
+                    WHERE message.user_id = thread.user_id
+                      AND message.thread_id = thread.thread_id
+                      AND message.role = 'user'
+                    ORDER BY message.sequence ASC, message.message_order ASC, message.id ASC
+                    LIMIT 1
+                ) AS prompt ON TRUE
+                WHERE thread.user_id = %s
+                ORDER BY thread.updated_at DESC
+                LIMIT %s
+                """,
+                (user_id, limit),
+            ).fetchall()
+
     def get_or_create_thread(
         self,
         user_id: str,

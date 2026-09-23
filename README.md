@@ -70,6 +70,14 @@ skills/
 `description` to discover relevant skills and reads the complete instructions only
 when a skill is selected.
 
+`skills/` is the shared-skill source directory. For reuse in another project
+using this architecture, copy or mount the complete directory below that
+project's `AGENT_FILESYSTEM_ROOT`, keep `AGENT_SKILLS_PATHS=skills` in its
+`.env`, and restart the backend. A skill that needs a backend tool must also
+provide `scripts/tools.py` with a `get_tools()` entrypoint; the backend loads
+its named callables only when that skill is selected. See the skill's
+`references/environment.md` for its non-secret configuration requirements.
+
 ```markdown
 ---
 name: your-skill-name

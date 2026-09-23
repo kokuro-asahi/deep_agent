@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from app.config import get_settings
 from app.observability import duration_ms, log_agent_event
 from app.retry import retry_sync
+from app.skill_tools import skill_tool_registry
 
 
 def get_current_time(timezone_name: str = "Asia/Shanghai") -> str:
@@ -181,12 +182,13 @@ def _parse_bocha_content(content: Any) -> Any:
 
 
 def get_agent_tools(active_skill_ids: tuple[str, ...] = ()) -> list[Callable[..., Any]]:
-    tools = [
+    built_in_tools: list[Callable[..., Any]] = [
         get_current_time,
         bocha_search,
     ]
-    if "enterprise-policy" in active_skill_ids:
-        from app.policy_kb import search_enterprise_policy
-
-        tools.append(search_enterprise_policy)
-    return tools
+    skill_tools = skill_tool_registry.tools_for(active_skill_ids)
+    built_in_names = {tool.__name__ for tool in built_in_tools}
+    duplicate_names = built_in_names.intersection(tool.__name__ for tool in skill_tools)
+    if duplicate_names:
+        raise RuntimeError(f"Skill tool conflicts with built-in tool: {', '.join(sorted(duplicate_names))}")
+    return [*built_in_tools, *skill_tools]

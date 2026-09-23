@@ -7,6 +7,8 @@ description: 查询企业规章制度知识库，检索制度条款和原文，�
 
 使用 `search_enterprise_policy` 查询知识库；此工具通过 MCP 调用已运行的企业制度检索服务，只提供查询能力。
 
+部署或迁移此 skill 前，阅读 [环境配置](references/environment.md)。该文件只说明变量名和配置方式，不包含任何密钥。
+
 - 根据用户问题构造检索词，保留制度主题、业务场景及适用对象；默认 top_k=5、candidates=20。
 - 结果包含 results 列表，其中 content 是原文，title、source_article、source_pages、file_id、chunk_id 用于定位依据。已知目标文件时用 file_id 限定检索。
 - 先核对原文适用范围再作答。结果不相关时调整检索词；比较多个制度或流程时分别检索。不要把相似度分数当作可信度或有效期。

@@ -1,15 +1,24 @@
 import asyncio
+import importlib
 from unittest.mock import patch
 
 import pytest
 
 from app.config import Settings
-from app.policy_kb import search_enterprise_policy
 from app.role_prompts import load_role_prompt
 from app.runtime import AgentRuntime
 from app.schemas import RunRequest
+from app.skill_tools import skill_tool_registry
 from app.skills import SkillRegistry
 from app.tools import get_agent_tools
+
+
+def _enterprise_policy_tool():
+    return next(
+        tool
+        for tool in skill_tool_registry.tools_for(("enterprise-policy",))
+        if tool.__name__ == "search_enterprise_policy"
+    )
 
 
 def test_policy_tools_are_opt_in():
@@ -39,11 +48,13 @@ def test_selected_skill_discovery_and_file_isolation(monkeypatch):
 
 def test_policy_bridge_preserves_results_and_arguments():
     expected = {"results": [{"content": "原文", "source_pages": [3]}], "result_count": 1}
-    with patch("app.policy_kb._search_policy", return_value=expected) as search:
-        assert search_enterprise_policy(" 请假 ", file_id=" policy-1 ") == expected
+    tool = _enterprise_policy_tool()
+    module = importlib.import_module(tool.__module__)
+    with patch.object(module, "_search_policy", return_value=expected) as search:
+        assert tool(" 请假 ", file_id=" policy-1 ") == expected
         search.assert_awaited_once_with({"query": "请假", "top_k": 5, "candidates": 20, "file_id": "policy-1"})
     with pytest.raises(ValueError):
-        search_enterprise_policy("", top_k=0)
+        tool("", top_k=0)
 
 
 def test_json_invocation_forwards_selected_skills():
