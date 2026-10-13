@@ -21,7 +21,7 @@ from app.schemas import (
     UserThreadsResponse,
     Usage,
 )
-from app.tool_sse import tool_trace_sse_event
+from app.tool_sse import image_artifacts_from_tool_trace, tool_trace_sse_event
 from app.usage import add_usage, empty_usage
 
 
@@ -188,6 +188,8 @@ class RunService:
                     trace_messages,
                     input_summary=_trace_summary(trace_messages),
                 )
+                artifacts = _image_artifacts_from_trace_messages(trace_messages)
+                assistant_content = _assistant_content(result["message"], artifacts)
                 await _db_event(
                     "save_assistant_message",
                     business_store.save_message,
@@ -196,9 +198,9 @@ class RunService:
                     thread_id,
                     sequence,
                     "assistant",
-                    [{"type": "text", "text": result["message"]}],
+                    assistant_content,
                     1000,
-                    input_summary={"text_length": len(result["message"])},
+                    input_summary={"text_length": len(result["message"]), "artifact_count": len(artifacts)},
                 )
                 await _db_event(
                     "complete_run",
@@ -307,6 +309,7 @@ class RunService:
 
         chunks: list[str] = []
         trace_messages: list[dict[str, Any]] = []
+        artifacts: list[dict[str, Any]] = []
         usage = empty_usage()
         try:
             with run_context(
@@ -405,6 +408,13 @@ class RunService:
                             tool_event = tool_trace_sse_event(run_id, event["message"])
                             if tool_event:
                                 yield tool_event
+                            for artifact in image_artifacts_from_tool_trace(event["message"]):
+                                artifacts.append(artifact)
+                                yield "artifact.created", {
+                                    "run_id": run_id,
+                                    "tool_call_id": _tool_call_id(event["message"]),
+                                    "artifact": artifact,
+                                }
                         elif event["type"] == "usage":
                             add_usage(usage, event["usage"])
                         elif event["type"] == "usage_total":
@@ -431,6 +441,7 @@ class RunService:
                 )
 
             message = "".join(chunks)
+            assistant_content = _assistant_content(message, artifacts)
             with run_context(
                 run_id=run_id,
                 user_id=request.user_id,
@@ -454,9 +465,9 @@ class RunService:
                     thread_id,
                     sequence,
                     "assistant",
-                    [{"type": "text", "text": message}],
+                    assistant_content,
                     1000,
-                    input_summary={"text_length": len(message)},
+                    input_summary={"text_length": len(message), "artifact_count": len(artifacts)},
                 )
                 await _db_event(
                     "complete_run",
@@ -533,6 +544,31 @@ class RunService:
 
 def _content(request: RunRequest) -> list[dict[str, Any]]:
     return [block.model_dump(exclude_none=True) for block in request.content]
+
+
+def _assistant_content(message: str, artifacts: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    content: list[dict[str, Any]] = [{"type": "text", "text": message}]
+    content.extend(
+        {
+            "type": artifact["type"],
+            "artifact_id": artifact["artifact_id"],
+            "metadata": artifact["metadata"],
+        }
+        for artifact in artifacts
+    )
+    return content
+
+
+def _image_artifacts_from_trace_messages(trace_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [artifact for message in trace_messages for artifact in image_artifacts_from_tool_trace(message)]
+
+
+def _tool_call_id(message: dict[str, Any]) -> str | None:
+    content = message.get("content")
+    if not isinstance(content, list) or not content or not isinstance(content[0], dict):
+        return None
+    value = content[0].get("tool_call_id")
+    return value if isinstance(value, str) else None
 
 
 async def _attach_request_context(

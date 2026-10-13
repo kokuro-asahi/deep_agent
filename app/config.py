@@ -21,6 +21,16 @@ def _csv_env(value: str | None, default: str = "") -> list[str]:
     return [item.strip() for item in source.split(",") if item.strip()]
 
 
+def _mapping_env(value: str | None, default: str) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    for pair in _csv_env(value, default):
+        ratio, separator, size = pair.partition("=")
+        if not separator or not ratio.strip() or not size.strip():
+            raise ValueError("IMAGE_ASPECT_RATIO_SIZES 必须使用 画幅=尺寸 格式")
+        mapping[ratio.strip()] = size.strip()
+    return mapping
+
+
 def _int_env(name: str, default: int) -> int:
     value = getenv(name)
     if value is None:
@@ -29,6 +39,13 @@ def _int_env(name: str, default: int) -> int:
         return int(value)
     except ValueError:
         return default
+
+
+def _bool_env(name: str, default: bool) -> bool:
+    value = getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() not in {"0", "false", "no", "off"}
 
 
 class Settings:
@@ -59,6 +76,31 @@ class Settings:
     cos_secret_key: str | None = getenv("COS_SECRET_KEY")
     cos_region: str = getenv("COS_REGION", "ap-guangzhou")
     cos_bucket: str | None = getenv("COS_BUCKET")
+    cos_scheme: str = getenv("COS_SCHEME", "https")
+
+    image_generation_enabled: bool = _bool_env("IMAGE_GENERATION_ENABLED", False)
+    # Any OpenAI-compatible image endpoint. No provider-specific environment
+    # variables are required; vendor extensions are opt-in below.
+    image_api_key: str | None = getenv("IMAGE_API_KEY")
+    image_api_base_url: str = getenv("IMAGE_API_BASE_URL", "https://api.openai.com/v1")
+    image_model: str = getenv("IMAGE_MODEL", "gpt-image-1")
+    image_response_format: str | None = getenv("IMAGE_RESPONSE_FORMAT") or None
+    image_output_extension: str = getenv("IMAGE_OUTPUT_EXTENSION", "png")
+    image_default_size: str = getenv("IMAGE_DEFAULT_SIZE", "1024x1024")
+    image_allowed_sizes: tuple[str, ...] = tuple(
+        _csv_env(getenv("IMAGE_ALLOWED_SIZES"), "1024x1024,1536x1024,1024x1536")
+    )
+    image_aspect_ratio_sizes: dict[str, str] = _mapping_env(
+        getenv("IMAGE_ASPECT_RATIO_SIZES"),
+        "1:1=1024x1024,16:9=1536x1024,9:16=1024x1536",
+    )
+    image_default_watermark: bool = _bool_env("IMAGE_DEFAULT_WATERMARK", True)
+    image_watermark_field: str | None = getenv("IMAGE_WATERMARK_FIELD") or None
+    image_download_timeout_seconds: int = _int_env("IMAGE_DOWNLOAD_TIMEOUT_SECONDS", 120)
+    image_upload_prefix: str = getenv("IMAGE_UPLOAD_PREFIX", "generated")
+    image_upload_part_size_mb: int = _int_env("IMAGE_UPLOAD_PART_SIZE_MB", 10)
+    image_upload_max_threads: int = _int_env("IMAGE_UPLOAD_MAX_THREADS", 5)
+    image_upload_acl: str = getenv("IMAGE_UPLOAD_ACL", "public-read")
 
 
 @lru_cache

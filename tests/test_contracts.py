@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 from types import SimpleNamespace
 
@@ -15,7 +16,8 @@ from app.role_prompts import load_role_prompt
 from app.retry import retry_sync
 from app.schemas import RunRequest
 from app.sse import encode_sse
-from app.tool_sse import tool_trace_sse_event
+from app.tool_sse import image_artifacts_from_tool_trace, tool_trace_sse_event
+from app import tools as agent_tools
 from app.tools import _normalize_bocha_result, get_agent_tools
 from app.runtime import AgentRuntime
 from app.skills import SkillRegistry
@@ -152,6 +154,54 @@ def test_tool_callback_trace_maps_to_completed_sse_event_with_unwrapped_result()
             "result": result,
         },
     )
+
+
+def test_generate_image_callback_is_exposed_as_an_image_artifact():
+    artifacts = image_artifacts_from_tool_trace(
+        {
+            "role": "tool_callback",
+            "content": [
+                {
+                    "type": "tool_callback",
+                    "tool_call_id": "call_image_001",
+                    "tool_name": "generate_image",
+                    "status": "completed",
+                    "result": {
+                        "type": "json",
+                        "content": {
+                            "request_id": "img_001",
+                            "images": [
+                                {
+                                    "id": "img_001",
+                                    "url": "https://bucket.example/generated/img_001/generated.png?token=abc",
+                                    "mime_type": "image/png",
+                                    "watermark_requested": True,
+                                    "watermark_applied": None,
+                                }
+                            ],
+                        },
+                    },
+                }
+            ],
+        }
+    )
+
+    assert artifacts == [
+        {
+            "artifact_id": "img_001",
+            "type": "image",
+            "metadata": {
+                "url": "https://bucket.example/generated/img_001/generated.png?token=abc",
+                "preview_url": "https://bucket.example/generated/img_001/generated.png?token=abc",
+                "mime_type": "image/png",
+                "file_name": "generated.png",
+                "watermark_requested": True,
+                "watermark_applied": None,
+                "expires_at": None,
+            },
+        }
+    ]
+
 
 
 def test_tool_callback_trace_maps_to_failed_sse_event():
@@ -487,6 +537,18 @@ def test_agent_tools_include_bocha_search():
     tool_names = {tool.__name__ for tool in get_agent_tools()}
 
     assert {"get_current_time", "bocha_search"} <= tool_names
+
+
+def test_image_tool_is_registered_only_when_enabled(monkeypatch):
+    monkeypatch.setattr(agent_tools, "get_settings", lambda: SimpleNamespace(image_generation_enabled=False))
+    assert "generate_image" not in {tool.__name__ for tool in agent_tools.get_agent_tools()}
+
+    monkeypatch.setattr(agent_tools, "get_settings", lambda: SimpleNamespace(image_generation_enabled=True))
+    assert "generate_image" in {tool.__name__ for tool in agent_tools.get_agent_tools()}
+
+
+def test_image_tool_exposes_only_the_provider_independent_contract():
+    assert tuple(inspect.signature(agent_tools.generate_image).parameters) == ("prompt", "n")
 
 
 def test_bocha_result_is_normalized_for_agent_output():

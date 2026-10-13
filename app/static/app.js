@@ -2,13 +2,12 @@ const els = {
   userId: document.querySelector("#userId"),
   threadId: document.querySelector("#threadId"),
   agentRole: document.querySelector("#agentRole"),
-  sidebarAgentRole: document.querySelector("#sidebarAgentRole"),
+  topbarAgentRole: document.querySelector("#topbarAgentRole"),
   agentPrompt: document.querySelector("#agentPrompt"),
   skillOptions: document.querySelector("#skillOptions"),
   runId: document.querySelector("#runId"),
   status: document.querySelector("#status"),
   statusDot: document.querySelector("#statusDot"),
-  agentTitle: document.querySelector("#agentTitle"),
   settingsPanel: document.querySelector("#settingsPanel"),
   settingsToggle: document.querySelector("#settingsTop"),
   sidebarSettings: document.querySelector("#sidebarSettings"),
@@ -37,6 +36,7 @@ const els = {
 
 const state = {
   assistantNode: null,
+  suppressPostImageText: false,
   toolCards: new Map(),
   toolActivities: new Map(),
   users: [],
@@ -50,8 +50,8 @@ checkHealth();
 loadSkills();
 
 els.agentRole.addEventListener("change", updatePromptState);
-els.sidebarAgentRole.addEventListener("change", () => {
-  els.agentRole.value = els.sidebarAgentRole.value;
+els.topbarAgentRole.addEventListener("change", () => {
+  els.agentRole.value = els.topbarAgentRole.value;
   updatePromptState();
 });
 els.threadId.addEventListener("input", updatePromptState);
@@ -85,6 +85,7 @@ els.newThread.addEventListener("click", () => {
   els.threadId.value = "";
   els.runId.textContent = "-";
   state.assistantNode = null;
+  state.suppressPostImageText = false;
   state.toolCards.clear();
   state.toolActivities.clear();
   setStatus("idle");
@@ -119,6 +120,7 @@ els.composer.addEventListener("submit", async (event) => {
   els.prompt.value = "";
   els.imageUrl.value = "";
   state.assistantNode = null;
+  state.suppressPostImageText = false;
 
   const body = buildRunBody(text, imageUrl);
   setBusy(true, "running");
@@ -141,7 +143,7 @@ function updatePromptState() {
   const usesCustomPrompt = !els.agentRole.value.trim();
   els.agentPrompt.disabled = hasThread || !usesCustomPrompt;
   els.agentPrompt.closest("label").classList.toggle("disabled", els.agentPrompt.disabled);
-  els.sidebarAgentRole.disabled = hasThread || els.agentRole.disabled;
+  els.topbarAgentRole.disabled = hasThread || els.agentRole.disabled;
   els.skillOptions.querySelectorAll("input").forEach((input) => {
     input.disabled = hasThread;
   });
@@ -153,9 +155,7 @@ function updatePromptState() {
   } else {
     els.agentPrompt.placeholder = "选择 custom prompt 后可填写";
   }
-  const selected = els.agentRole.options[els.agentRole.selectedIndex]?.textContent || "通用 Agent";
-  els.agentTitle.textContent = usesCustomPrompt ? "自定义 Agent" : selected;
-  if (els.sidebarAgentRole.value !== els.agentRole.value) els.sidebarAgentRole.value = els.agentRole.value;
+  if (els.topbarAgentRole.value !== els.agentRole.value) els.topbarAgentRole.value = els.agentRole.value;
 }
 
 function validateControls() {
@@ -289,7 +289,7 @@ function handleSseEvent(rawEvent) {
     applyRunMeta(data);
     setStatus("running");
   } else if (event === "message.delta") {
-    appendAssistantDelta(data.text || "");
+    if (!state.suppressPostImageText) appendAssistantDelta(data.text || "");
   } else if (event === "tool.call.started") {
     finishAssistantBlock();
     appendToolCall(data, "running");
@@ -299,6 +299,12 @@ function handleSseEvent(rawEvent) {
   } else if (event === "tool.call.failed") {
     finishAssistantBlock();
     appendToolCall(data, "failed");
+  } else if (event === "artifact.created") {
+    finishAssistantBlock();
+    appendArtifact(data.artifact);
+    // Images are already rendered as artifacts. The model's follow-up is often
+    // a duplicate Markdown delivery report, which should not clutter the chat.
+    if (data.artifact?.type === "image") state.suppressPostImageText = true;
   } else if (event === "run.completed") {
     applyRunMeta(data);
     setStatus("completed");
@@ -341,7 +347,8 @@ function appendAssistantDelta(text) {
     state.assistantNode = appendMessage("assistant", "");
   }
   const content = state.assistantNode.querySelector(".message-content");
-  content.textContent += text;
+  state.assistantNode.dataset.markdown = `${state.assistantNode.dataset.markdown || ""}${text}`;
+  renderMarkdown(content, state.assistantNode.dataset.markdown);
   scrollMessages();
 }
 
@@ -360,11 +367,152 @@ function appendMessage(role, text) {
   title.textContent = role;
   const content = document.createElement("div");
   content.className = "message-content";
-  content.textContent = text;
+  item.dataset.markdown = text;
+  renderMarkdown(content, text);
   item.append(title, content);
   els.messages.appendChild(item);
   scrollMessages();
   return item;
+}
+
+function appendArtifact(artifact) {
+  if (!artifact || artifact.type !== "image" || !artifact.metadata?.url) return;
+  const item = appendMessage("assistant", "");
+  const content = item.querySelector(".message-content");
+  content.replaceChildren(createImageArtifact(artifact));
+  scrollMessages();
+}
+
+function appendStructuredMessage(role, blocks) {
+  if (!Array.isArray(blocks) || !blocks.length) return null;
+  const hasImageArtifact = role === "assistant" && blocks.some((block) => block?.type === "image");
+  const text = blocks
+    .filter((block) => !hasImageArtifact && block?.type === "text" && typeof block.text === "string")
+    .map((block) => block.text)
+    .join("\n");
+  const item = appendMessage(role, text);
+  const content = item.querySelector(".message-content");
+  for (const block of blocks) {
+    if (block?.type !== "image") continue;
+    const image = createImageArtifact(block);
+    if (image) content.appendChild(image);
+  }
+  return item;
+}
+
+function createImageArtifact(block) {
+  const metadata = block.metadata || block;
+  if (!metadata.url) return null;
+  const figure = document.createElement("figure");
+  figure.className = "image-artifact";
+  const link = document.createElement("a");
+  link.href = metadata.url;
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  const image = document.createElement("img");
+  image.src = metadata.preview_url || metadata.url;
+  image.alt = metadata.alt || metadata.file_name || "生成图片";
+  image.loading = "lazy";
+  link.appendChild(image);
+  figure.appendChild(link);
+  if (metadata.alt) {
+    const caption = document.createElement("figcaption");
+    caption.textContent = metadata.alt;
+    figure.appendChild(caption);
+  }
+  return figure;
+}
+
+function renderMarkdown(container, source) {
+  try {
+    renderMarkdownUnsafe(container, source);
+  } catch (error) {
+    console.error("Markdown rendering failed; falling back to plain text.", error);
+    container.textContent = String(source || "");
+  }
+}
+
+function renderMarkdownUnsafe(container, source) {
+  const lines = String(source || "").replace(/\r\n?/g, "\n").split("\n");
+  const blocks = [];
+  let index = 0;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    if (!line.trim()) { index += 1; continue; }
+    if (/^```/.test(line)) {
+      const language = line.slice(3).trim();
+      const code = [];
+      index += 1;
+      while (index < lines.length && !/^```/.test(lines[index])) code.push(lines[index++]);
+      if (index < lines.length) index += 1;
+      blocks.push(`<pre><code${language ? ` class="language-${escapeHtml(language)}"` : ""}>${escapeHtml(code.join("\n"))}</code></pre>`);
+      continue;
+    }
+    const heading = line.match(/^(#{1,6})\s+(.+)$/);
+    if (heading) {
+      const level = heading[1].length;
+      blocks.push(`<h${level}>${renderInlineMarkdown(heading[2])}</h${level}>`);
+      index += 1;
+      continue;
+    }
+    if (/^\s{0,3}([-*_])(?:\s*\1){2,}\s*$/.test(line)) { blocks.push("<hr>"); index += 1; continue; }
+    if (isTableDivider(lines[index + 1]) && line.includes("|")) {
+      const headers = splitTableRow(line);
+      index += 2;
+      const rows = [];
+      while (index < lines.length && lines[index].includes("|") && lines[index].trim()) rows.push(splitTableRow(lines[index++]));
+      const headerHtml = headers.map((cell) => `<th>${renderInlineMarkdown(cell)}</th>`).join("");
+      const bodyHtml = rows.map((row) => `<tr>${headers.map((_, cellIndex) => `<td>${renderInlineMarkdown(row[cellIndex] || "")}</td>`).join("")}</tr>`).join("");
+      blocks.push(`<div class="markdown-table-wrap"><table><thead><tr>${headerHtml}</tr></thead><tbody>${bodyHtml}</tbody></table></div>`);
+      continue;
+    }
+    const list = line.match(/^\s*([-*+]|\d+\.)\s+(.+)$/);
+    if (list) {
+      const ordered = /\d+\./.test(list[1]);
+      const items = [];
+      while (index < lines.length) {
+        const item = lines[index].match(/^\s*([-*+]|\d+\.)\s+(.+)$/);
+        if (!item || /\d+\./.test(item[1]) !== ordered) break;
+        items.push(`<li>${renderInlineMarkdown(item[2])}</li>`);
+        index += 1;
+      }
+      blocks.push(`<${ordered ? "ol" : "ul"}>${items.join("")}</${ordered ? "ol" : "ul"}>`);
+      continue;
+    }
+    if (/^>\s?/.test(line)) {
+      const quote = [];
+      while (index < lines.length && /^>\s?/.test(lines[index])) quote.push(lines[index++].replace(/^>\s?/, ""));
+      blocks.push(`<blockquote>${renderInlineMarkdown(quote.join("\n")).replace(/\n/g, "<br>")}</blockquote>`);
+      continue;
+    }
+    const paragraph = [];
+    while (index < lines.length && lines[index].trim() && !/^```|^(#{1,6})\s+|^\s*([-*+]|\d+\.)\s+|^>\s?/.test(lines[index])) paragraph.push(lines[index++]);
+    blocks.push(`<p>${renderInlineMarkdown(paragraph.join("\n")).replace(/\n/g, "<br>")}</p>`);
+  }
+  container.innerHTML = blocks.join("");
+}
+
+function splitTableRow(line) {
+  return line.trim().replace(/^\||\|$/g, "").split("|").map((cell) => cell.trim());
+}
+
+function isTableDivider(line = "") {
+  return /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(line);
+}
+
+function renderInlineMarkdown(value) {
+  return escapeHtml(value)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/\*([^*]+)\*/g, "<em>$1</em>")
+    .replace(/_([^_]+)_/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[character]));
 }
 
 function appendToolCall(data, status) {
@@ -396,6 +544,7 @@ function appendToolActivity(data, status) {
     state.toolActivities.set(callId, item);
   }
   const labels = {
+    generate_image: ["正在生图", "图片已生成"],
     read_file: ["正在读取参考资料", "已读取参考资料"],
     unknown_tool: ["正在准备工具", "工具已完成"],
   };
@@ -640,20 +789,13 @@ async function openThread(thread) {
     const data = await readJson(response);
     const conversations = [...(data.messages || [])].reverse();
     for (const conversation of conversations) {
-      const userText = contentText(conversation.user?.content);
-      const assistantText = contentText(conversation.assistant?.content);
-      if (userText) appendMessage("user", userText);
-      if (assistantText) appendMessage("assistant", assistantText);
+      if (conversation.user?.content?.length) appendStructuredMessage("user", conversation.user.content);
+      if (conversation.assistant?.content?.length) appendStructuredMessage("assistant", conversation.assistant.content);
     }
     if (!conversations.length) renderEmpty();
   } catch (err) {
     appendMessage("error", `历史消息加载失败：${err.message || String(err)}`);
   }
-}
-
-function contentText(content) {
-  if (!Array.isArray(content)) return "";
-  return content.map((item) => item.type === "text" ? item.text : item.url ? `[image] ${item.url}` : "").filter(Boolean).join("\n");
 }
 
 function clearEmpty() {
@@ -684,7 +826,7 @@ function setStatus(status) {
 function setBusy(busy, status) {
   els.send.disabled = busy;
   els.agentRole.disabled = busy;
-  els.sidebarAgentRole.disabled = busy || Boolean(els.threadId.value.trim());
+  els.topbarAgentRole.disabled = busy || Boolean(els.threadId.value.trim());
   els.threadId.disabled = busy;
   els.skillOptions.querySelectorAll("input").forEach((input) => {
     input.disabled = busy || Boolean(els.threadId.value.trim());

@@ -1,0 +1,31 @@
+/* Final visual layer: blue application chrome, white conversation canvas. */
+:root { --line: #c5deee; background: #fff; }
+.workspace { background: #fff !important; }
+.messages { background: #fff; }
+.topbar { background: #e9f6ff !important; border-bottom-color: #bcdcf2 !important; }
+.app-sidebar, .sidebar-footer { background: #173f67 !important; }
+.new-chat { background: #245b8f; }
+.new-chat:hover { background: #2e6da6; }
+.conversation.active { background: #285d8e; }
+.conversation:hover { background: #204f7c; }
+
+.message-content { white-space: normal; }
+.message-content p { margin: 0 0 1em; }
+.message-content p:last-child { margin-bottom: 0; }
+.message-content h1, .message-content h2, .message-content h3, .message-content h4, .message-content h5, .message-content h6 { margin: 1.1em 0 .55em; color: #1d2e3a; line-height: 1.35; }
+.message-content h1 { font-size: 1.55em; }
+.message-content h2 { font-size: 1.35em; }
+.message-content h3 { font-size: 1.16em; }
+.message-content ul, .message-content ol { margin: .45em 0 1em; padding-left: 1.55em; }
+.message-content li + li { margin-top: .3em; }
+.message-content strong { font-weight: 800; }
+.message-content code { padding: .1em .35em; border-radius: 4px; background: #edf4f8; color: #194e73; font-family: 'DM Mono', monospace; font-size: .88em; }
+.message-content pre { margin: .8em 0; overflow: auto; padding: 12px; border-radius: 9px; background: #172634; color: #e9f5ff; white-space: pre; }
+.message-content pre code { padding: 0; background: transparent; color: inherit; }
+.message-content blockquote { margin: .8em 0; padding: .15em 1em; border-left: 3px solid #70b9e8; background: #f3faff; color: #496270; }
+.message-content hr { margin: 1.2em 0; border: 0; border-top: 1px solid #d7e4ec; }
+.message-content a { color: #137ab6; text-decoration: underline; }
+.markdown-table-wrap { margin: .8em 0; overflow-x: auto; }
+.message-content table { width: 100%; border-collapse: collapse; font-size: .93em; }
+.message-content th, .message-content td { padding: .55em .7em; border: 1px solid #d7e3ea; text-align: left; }
+.message-content th { background: #edf7fd; color: #24445a; font-weight: 800; }

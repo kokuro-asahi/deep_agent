@@ -9,6 +9,7 @@ from urllib.request import Request, urlopen
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.config import get_settings
+from app.image_generation import ImageGenerationService
 from app.observability import duration_ms, log_agent_event
 from app.retry import retry_sync
 from app.skill_tools import skill_tool_registry
@@ -21,6 +22,19 @@ def get_current_time(timezone_name: str = "Asia/Shanghai") -> str:
     except ZoneInfoNotFoundError:
         return f"Unknown timezone: {timezone_name}"
     return datetime.now(timezone).isoformat(timespec="seconds")
+
+
+def generate_image(
+    prompt: str,
+    n: int = 1,
+) -> dict[str, Any]:
+    """根据提示词生成图片并上传至 COS。
+
+    n 为生成数量，默认 1；仅在用户明确需要多个方案时增大该值。
+    模型、图片尺寸、输出格式及水印均使用当前模型服务的默认配置。
+    成功后图片会由前端自动展示；只需简短确认，勿重复输出图片链接、标题、分隔线或交付报告。
+    """
+    return ImageGenerationService(get_settings()).generate_and_upload(prompt, n=n)
 
 
 def bocha_search(query: str, count: int = 5, freshness: str = "noLimit") -> dict[str, Any]:
@@ -186,6 +200,8 @@ def get_agent_tools(active_skill_ids: tuple[str, ...] = ()) -> list[Callable[...
         get_current_time,
         bocha_search,
     ]
+    if get_settings().image_generation_enabled:
+        built_in_tools.append(generate_image)
     skill_tools = skill_tool_registry.tools_for(active_skill_ids)
     built_in_names = {tool.__name__ for tool in built_in_tools}
     duplicate_names = built_in_names.intersection(tool.__name__ for tool in skill_tools)
