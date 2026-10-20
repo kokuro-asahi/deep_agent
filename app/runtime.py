@@ -33,10 +33,15 @@ class AgentRuntime:
         # that were not selected for a thread out of that thread's discovery scope.
 
     def deep_agent_kwargs(self, skill_paths: list[str] | None = None, active_skill_ids: tuple[str, ...] = ()) -> dict[str, Any]:
+        from langchain.agents.middleware import TodoListMiddleware
+
+        from app.agent_middleware import RolePromptMiddleware
+
         kwargs: dict[str, Any] = {
             "model": self.create_model(),
             "tools": get_agent_tools(active_skill_ids),
             "checkpointer": self.checkpointer,
+            "middleware": [RolePromptMiddleware(), TodoListMiddleware()],
         }
         skills = skill_paths or []
         if skills:
@@ -135,6 +140,26 @@ class AgentRuntime:
 
     def config(self, user_id: str, thread_id: str, context_version: int = 1) -> dict[str, Any]:
         return {"configurable": {"thread_id": self.storage_thread_id(user_id, thread_id, context_version)}}
+
+    def get_todos(self, user_id: str, thread_id: str, context_version: int = 1) -> list[dict[str, str]]:
+        if self.checkpointer is None:
+            return []
+        checkpoint = self.checkpointer.get_tuple(self.config(user_id, thread_id, context_version))
+        if checkpoint is None:
+            return []
+        return normalize_todos(checkpoint.checkpoint.get("channel_values", {}).get("todos"))
+
+
+def normalize_todos(value: Any) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    return [
+        {"content": item["content"], "status": item["status"]}
+        for item in value
+        if isinstance(item, dict)
+        and isinstance(item.get("content"), str)
+        and item.get("status") in ("pending", "in_progress", "completed")
+    ]
 
 
 runtime = AgentRuntime(get_settings())

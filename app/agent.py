@@ -5,7 +5,7 @@ from typing import Any
 
 from app.config import Settings
 from app.errors import AppError, ErrorCode
-from app.runtime import extract_text, runtime
+from app.runtime import extract_text, normalize_todos, runtime
 from app.usage import add_usage, empty_usage, usage_from_message, usage_from_messages
 
 
@@ -79,7 +79,7 @@ class AgentClient:
         stream = agent.stream(
             {"messages": messages},
             runtime.config(user_id, thread_id, context_version),
-            stream_mode="messages",
+            stream_mode=["messages", "updates"],
         )
         tool_call_chunks: dict[str, dict[str, Any]] = {}
         emitted_tool_calls: set[str] = set()
@@ -89,6 +89,12 @@ class AgentClient:
             event = await to_thread(_next_stream_item, stream)
             if event is _STREAM_DONE:
                 break
+            mode, event = event
+            if mode == "updates":
+                for update in event.values():
+                    if isinstance(update, dict) and "todos" in update:
+                        yield {"type": "plan", "todos": normalize_todos(update["todos"])}
+                continue
             candidate = _candidate_message(event)
             usage = usage_from_message(candidate)
             if any(usage.values()):
@@ -151,11 +157,13 @@ def _normalize_agent_result(result: Any) -> dict[str, Any]:
             "message": extract_text(last),
             "usage": usage_from_messages(messages),
             "trace_messages": _extract_trace_messages(messages),
+            "todos": normalize_todos(result.get("todos")),
         }
     return {
         "message": "",
         "usage": empty_usage(),
         "trace_messages": [],
+        "todos": normalize_todos(result.get("todos")) if isinstance(result, dict) else [],
     }
 
 

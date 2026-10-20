@@ -226,6 +226,7 @@ class RunService:
                 status="completed",
                 message=result["message"],
                 usage=Usage(**result.get("usage", {})),
+                todos=result.get("todos", []),
             )
         except Exception as exc:
             with run_context(
@@ -310,6 +311,7 @@ class RunService:
         chunks: list[str] = []
         trace_messages: list[dict[str, Any]] = []
         artifacts: list[dict[str, Any]] = []
+        todos: list[dict[str, str]] = []
         usage = empty_usage()
         try:
             with run_context(
@@ -415,6 +417,9 @@ class RunService:
                                     "tool_call_id": _tool_call_id(event["message"]),
                                     "artifact": artifact,
                                 }
+                        elif event["type"] == "plan":
+                            todos = event["todos"]
+                            yield "plan.updated", {"run_id": run_id, "thread_id": thread_id, "todos": todos}
                         elif event["type"] == "usage":
                             add_usage(usage, event["usage"])
                         elif event["type"] == "usage_total":
@@ -490,6 +495,7 @@ class RunService:
                 status="completed",
                 message=message,
                 usage=Usage(**usage),
+                todos=todos,
             ).model_dump(mode="json")
         except Exception as exc:
             with run_context(
@@ -512,6 +518,7 @@ class RunService:
                 "run_id": run_id,
                 "status": "failed",
                 "error": error,
+                "todos": todos,
             }
 
     async def reset_context(self, user_id: str, thread_id: str) -> ContextResetResponse:
@@ -529,6 +536,8 @@ class RunService:
         if not thread:
             raise_thread_not_found()
         rows, total = await to_thread(business_store.paged_conversations, user_id, thread_id, page, page_size)
+        todos = await to_thread(runtime.get_todos, user_id, thread_id, int(thread["context_version"]))
+        run_status = await to_thread(business_store.latest_run_status, user_id, thread_id)
         pages = (total + page_size - 1) // page_size if total else 0
         return ThreadMessagesResponse(
             user_id=user_id,
@@ -539,6 +548,8 @@ class RunService:
             total_messages=total,
             has_more=page < pages,
             messages=rows,
+            todos=todos,
+            run_status=run_status,
         )
 
 

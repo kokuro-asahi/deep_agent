@@ -318,6 +318,18 @@ class BusinessStore:
                 (user_id, thread_id),
             ).fetchone()
 
+    def latest_run_status(self, user_id: str, thread_id: str) -> str | None:
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT status FROM agent_runs
+                WHERE user_id = %s AND thread_id = %s
+                ORDER BY created_at DESC LIMIT 1
+                """,
+                (user_id, thread_id),
+            ).fetchone()
+        return row["status"] if row else None
+
     def list_users(self, limit: int = 100) -> list[str]:
         """Return user IDs that have created at least one thread, newest first."""
         with self.connection() as conn:

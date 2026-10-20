@@ -82,6 +82,11 @@ class ErrorInfo(BaseModel):
     retryable: bool = False
 
 
+class TodoItem(BaseModel):
+    content: str
+    status: Literal["pending", "in_progress", "completed"]
+
+
 class RunResponse(BaseModel):
     run_id: str
     user_id: str
@@ -90,6 +95,7 @@ class RunResponse(BaseModel):
     message: str = ""
     usage: Usage = Field(default_factory=Usage)
     error: ErrorInfo | None = None
+    todos: list[TodoItem] = Field(default_factory=list)
 
 
 class ContextResetRequest(BaseModel):
@@ -124,6 +130,8 @@ class ThreadMessagesResponse(BaseModel):
     total_messages: int
     has_more: bool
     messages: list[ConversationMessage]
+    todos: list[TodoItem] = Field(default_factory=list)
+    run_status: Literal["pending", "running", "completed", "failed"] | None = None
 
 
 class UserListResponse(BaseModel):

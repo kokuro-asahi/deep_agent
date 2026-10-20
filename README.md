@@ -129,6 +129,21 @@ also reads `agent_event_logs` by `run_id` and prints
 `guard_action={"action":"block"}`, `{"action":"allow"}`, or `-` for the actual
 `model_guard.check` decision recorded by the server.
 
+## Task Planning
+
+The Agent uses the official `TodoListMiddleware` alongside `RolePromptMiddleware`.
+The model can maintain a plan with `write_todos`; plans are stored in the existing
+PostgreSQL checkpoint state, without a separate plan file or database migration.
+
+The frontend displays a collapsible plan with live step updates and restores the
+latest plan when opening a conversation. Completed or failed runs stop displaying
+steps as actively running; steps the model has not marked complete remain
+unconfirmed. Simple requests may not need a plan under the official middleware's
+default behavior.
+
+Restart the backend and refresh the page after updating. Run frontend checks with
+`node tests/frontend.test.cjs` and backend checks with `python -m pytest tests -q`.
+
 ## Request Logs
 
 Every HTTP request is recorded in `api_request_logs` with a generated `request_id`,

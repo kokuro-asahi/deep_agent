@@ -25,6 +25,9 @@ const els = {
   topNewThread: document.querySelector("#topNewThread"),
   clearChat: document.querySelector("#clearChat"),
   messages: document.querySelector("#messages"),
+  taskPlan: document.querySelector("#taskPlan"),
+  planSummary: document.querySelector("#planSummary"),
+  planList: document.querySelector("#planList"),
   composer: document.querySelector("#composer"),
   prompt: document.querySelector("#prompt"),
   imageUrl: document.querySelector("#imageUrl"),
@@ -40,6 +43,11 @@ const state = {
   toolCards: new Map(),
   toolActivities: new Map(),
   users: [],
+  todos: [],
+  planRunStatus: "",
+  viewVersion: 0,
+  followOutput: true,
+  assistantRenderFrame: null,
 };
 
 const EXAMPLE_PROMPT = "你是一个专业影视创作助手。回答要简洁，优先给出可执行方案；涉及分镜时输出镜号、景别、镜头运动和画面描述。";
@@ -55,6 +63,12 @@ els.topbarAgentRole.addEventListener("change", () => {
   updatePromptState();
 });
 els.threadId.addEventListener("input", updatePromptState);
+els.messages.addEventListener("scroll", trackMessageScroll, { passive: true });
+els.messages.addEventListener("wheel", (event) => {
+  if (event.deltaY < 0 && els.messages.scrollHeight > els.messages.clientHeight) {
+    state.followOutput = false;
+  }
+}, { passive: true });
 els.settingsToggle.addEventListener("click", () => setSettingsOpen(true));
 els.sidebarSettings.addEventListener("click", toggleUserMenu);
 els.closeSettings.addEventListener("click", () => setSettingsOpen(false));
@@ -82,6 +96,10 @@ els.loginForm.addEventListener("submit", async (event) => {
 });
 
 els.newThread.addEventListener("click", () => {
+  state.viewVersion += 1;
+  state.followOutput = true;
+  finishAssistantBlock();
+  renderPlan([]);
   els.threadId.value = "";
   els.runId.textContent = "-";
   state.assistantNode = null;
@@ -116,6 +134,10 @@ els.composer.addEventListener("submit", async (event) => {
     return;
   }
 
+  state.viewVersion += 1;
+  state.followOutput = true;
+  finishAssistantBlock();
+  renderPlan([]);
   appendMessage("user", [text, imageUrl && `[image] ${imageUrl}`].filter(Boolean).join("\n"));
   els.prompt.value = "";
   els.imageUrl.value = "";
@@ -131,9 +153,11 @@ els.composer.addEventListener("submit", async (event) => {
       await runJson(body);
     }
   } catch (err) {
+    renderPlan(state.todos, "failed");
     appendMessage("error", err.message || String(err));
     setStatus("failed");
   } finally {
+    finishAssistantBlock();
     setBusy(false);
   }
 });
@@ -244,6 +268,7 @@ async function runJson(body) {
   });
   const data = await readJson(response);
   applyRunMeta(data);
+  renderPlan(data.todos || [], data.status);
   if (data.error) {
     appendMessage("error", data.error.message || "run failed");
     setStatus("failed");
@@ -286,8 +311,12 @@ function handleSseEvent(rawEvent) {
   const data = JSON.parse(dataLine.slice(5).trim());
 
   if (event === "run.started") {
+    renderPlan([], "running");
     applyRunMeta(data);
     setStatus("running");
+  } else if (event === "plan.updated") {
+    if (data.thread_id && data.thread_id !== els.threadId.value) return;
+    renderPlan(data.todos, "running");
   } else if (event === "message.delta") {
     if (!state.suppressPostImageText) appendAssistantDelta(data.text || "");
   } else if (event === "tool.call.started") {
@@ -306,11 +335,46 @@ function handleSseEvent(rawEvent) {
     // a duplicate Markdown delivery report, which should not clutter the chat.
     if (data.artifact?.type === "image") state.suppressPostImageText = true;
   } else if (event === "run.completed") {
+    finishAssistantBlock();
+    renderPlan(data.todos || state.todos, "completed");
     applyRunMeta(data);
     setStatus("completed");
   } else if (event === "run.failed") {
+    finishAssistantBlock();
+    renderPlan(data.todos || state.todos, "failed");
     appendMessage("error", data.error?.message || "run failed");
     setStatus("failed");
+  }
+}
+
+function renderPlan(todos, runStatus = "") {
+  const labels = { pending: "待执行", in_progress: "执行中", completed: "已完成" };
+  const ended = runStatus === "completed" || runStatus === "failed";
+  state.todos = Array.isArray(todos) ? todos.filter((todo) =>
+    todo && typeof todo.content === "string" && Object.hasOwn(labels, todo.status)
+  ) : [];
+  state.planRunStatus = runStatus;
+  els.taskPlan.hidden = state.todos.length === 0 && runStatus !== "running";
+  const completed = state.todos.filter((todo) => todo.status === "completed").length;
+  const progress = `已完成 ${completed}/${state.todos.length}`;
+  const summary = runStatus === "failed" ? `运行中断 · ${progress}` :
+    runStatus === "completed" ? completed === state.todos.length ? `任务已完成 · ${progress}` :
+      `回答已结束 · 已确认完成 ${completed}/${state.todos.length}` : progress;
+  els.planSummary.textContent = state.todos.length ? summary :
+    runStatus === "running" ? "正在生成计划…" : "";
+  els.planList.replaceChildren();
+  for (const todo of state.todos) {
+    const row = document.createElement("li");
+    row.className = `plan-step ${ended && todo.status !== "completed" ? "unconfirmed" : todo.status}`;
+    const status = document.createElement("span");
+    status.className = "plan-step-status";
+    status.textContent = ended && todo.status !== "completed" ?
+      runStatus === "failed" ? "未完成" : "未确认完成" : labels[todo.status];
+    const content = document.createElement("span");
+    content.className = "plan-step-content";
+    content.textContent = todo.content;
+    row.append(status, content);
+    els.planList.appendChild(row);
   }
 }
 
@@ -343,16 +407,28 @@ function applyRunMeta(data) {
 }
 
 function appendAssistantDelta(text) {
+  if (!text) return;
   if (!state.assistantNode) {
     state.assistantNode = appendMessage("assistant", "");
   }
-  const content = state.assistantNode.querySelector(".message-content");
   state.assistantNode.dataset.markdown = `${state.assistantNode.dataset.markdown || ""}${text}`;
+  if (state.assistantRenderFrame === null) {
+    state.assistantRenderFrame = requestAnimationFrame(flushAssistantRender);
+  }
+}
+
+function flushAssistantRender() {
+  if (state.assistantRenderFrame === null) return;
+  cancelAnimationFrame(state.assistantRenderFrame);
+  state.assistantRenderFrame = null;
+  if (!state.assistantNode) return;
+  const content = state.assistantNode.querySelector(".message-content");
   renderMarkdown(content, state.assistantNode.dataset.markdown);
   scrollMessages();
 }
 
 function finishAssistantBlock() {
+  flushAssistantRender();
   // A tool event separates the model's execution narration from the next
   // assistant response segment, so later deltas must not append to it.
   state.assistantNode = null;
@@ -488,6 +564,7 @@ function renderMarkdownUnsafe(container, source) {
     }
     const paragraph = [];
     while (index < lines.length && lines[index].trim() && !/^```|^(#{1,6})\s+|^\s*([-*+]|\d+\.)\s+|^>\s?/.test(lines[index])) paragraph.push(lines[index++]);
+    if (!paragraph.length) paragraph.push(lines[index++]);
     blocks.push(`<p>${renderInlineMarkdown(paragraph.join("\n")).replace(/\n/g, "<br>")}</p>`);
   }
   container.innerHTML = blocks.join("");
@@ -516,6 +593,7 @@ function escapeHtml(value) {
 }
 
 function appendToolCall(data, status) {
+  if (data.tool_type === "write_todos") return;
   const toolType = data.tool_type || "unknown_tool";
   if (!isSearchTool(toolType)) {
     appendToolActivity(data, status);
@@ -712,6 +790,10 @@ function renderUserOptions(users) {
 }
 
 async function selectUser(userId) {
+  state.viewVersion += 1;
+  state.followOutput = true;
+  finishAssistantBlock();
+  renderPlan([]);
   els.userId.value = userId;
   els.currentUserName.textContent = userId;
   els.userAvatar.textContent = userId.slice(0, 2).toUpperCase();
@@ -775,6 +857,10 @@ function renderThreads(threads, error = "") {
 }
 
 async function openThread(thread) {
+  const viewVersion = ++state.viewVersion;
+  state.followOutput = true;
+  finishAssistantBlock();
+  renderPlan([]);
   els.threadId.value = thread.thread_id;
   updatePromptState();
   state.assistantNode = null;
@@ -787,6 +873,8 @@ async function openThread(thread) {
   try {
     const response = await fetch(`/v1/threads/${encodeURIComponent(thread.thread_id)}/messages?user_id=${encodeURIComponent(els.userId.value)}&page=1&page_size=100`);
     const data = await readJson(response);
+    if (viewVersion !== state.viewVersion) return;
+    renderPlan(data.todos || [], data.run_status);
     const conversations = [...(data.messages || [])].reverse();
     for (const conversation of conversations) {
       if (conversation.user?.content?.length) appendStructuredMessage("user", conversation.user.content);
@@ -794,6 +882,7 @@ async function openThread(thread) {
     }
     if (!conversations.length) renderEmpty();
   } catch (err) {
+    if (viewVersion !== state.viewVersion) return;
     appendMessage("error", `历史消息加载失败：${err.message || String(err)}`);
   }
 }
@@ -803,8 +892,15 @@ function clearEmpty() {
   if (empty) empty.remove();
 }
 
+function trackMessageScroll() {
+  const distance = els.messages.scrollHeight - els.messages.clientHeight - els.messages.scrollTop;
+  state.followOutput = distance <= 4;
+}
+
 function scrollMessages() {
-  els.messages.scrollTop = els.messages.scrollHeight;
+  if (state.followOutput) {
+    els.messages.scrollTop = Math.max(0, els.messages.scrollHeight - els.messages.clientHeight);
+  }
 }
 
 function setStatus(status) {
