@@ -5,7 +5,9 @@ from pathlib import Path
 ROLE_PROMPT_DIR = Path(__file__).resolve().parent / "prompts" / "roles"
 
 ROLE_PROMPT_FILES = {
+    "general_assistant": "general_assistant.md",
     "enterprise_policy_advisor": "enterprise_policy_advisor.md",
+    "子健diy": "鲸鱼娘DeepSeek_恋爱陪伴Agent完整提示词.md",
     "director": "director.md",
     "cinematographer": "cinematographer.md",
     "art_director": "art_director.md",

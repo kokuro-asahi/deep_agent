@@ -21,7 +21,7 @@ from app.schemas import (
     UserThreadsResponse,
     Usage,
 )
-from app.tool_sse import image_artifacts_from_tool_trace, tool_trace_sse_event
+from app.tool_sse import artifacts_from_tool_trace, tool_trace_sse_event
 from app.usage import add_usage, empty_usage
 
 
@@ -188,7 +188,7 @@ class RunService:
                     trace_messages,
                     input_summary=_trace_summary(trace_messages),
                 )
-                artifacts = _image_artifacts_from_trace_messages(trace_messages)
+                artifacts = _artifacts_from_trace_messages(trace_messages)
                 assistant_content = _assistant_content(result["message"], artifacts)
                 await _db_event(
                     "save_assistant_message",
@@ -227,6 +227,7 @@ class RunService:
                 message=result["message"],
                 usage=Usage(**result.get("usage", {})),
                 todos=result.get("todos", []),
+                artifacts=artifacts,
             )
         except Exception as exc:
             with run_context(
@@ -410,7 +411,7 @@ class RunService:
                             tool_event = tool_trace_sse_event(run_id, event["message"])
                             if tool_event:
                                 yield tool_event
-                            for artifact in image_artifacts_from_tool_trace(event["message"]):
+                            for artifact in artifacts_from_tool_trace(event["message"]):
                                 artifacts.append(artifact)
                                 yield "artifact.created", {
                                     "run_id": run_id,
@@ -496,6 +497,7 @@ class RunService:
                 message=message,
                 usage=Usage(**usage),
                 todos=todos,
+                artifacts=artifacts,
             ).model_dump(mode="json")
         except Exception as exc:
             with run_context(
@@ -570,8 +572,8 @@ def _assistant_content(message: str, artifacts: list[dict[str, Any]]) -> list[di
     return content
 
 
-def _image_artifacts_from_trace_messages(trace_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    return [artifact for message in trace_messages for artifact in image_artifacts_from_tool_trace(message)]
+def _artifacts_from_trace_messages(trace_messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [artifact for message in trace_messages for artifact in artifacts_from_tool_trace(message)]
 
 
 def _tool_call_id(message: dict[str, Any]) -> str | None:

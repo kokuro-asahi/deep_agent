@@ -337,14 +337,16 @@ def test_agent_role_not_required_for_existing_thread():
     assert request.thread_id == "thread_001"
 
 
-def test_supported_agent_role_is_accepted_for_new_thread():
+@pytest.mark.parametrize("agent_role", ["storyboard_artist", "general_assistant"])
+def test_supported_agent_role_is_accepted_for_new_thread(agent_role):
     request = RunRequest(
         user_id="user_001",
-        agent_role="storyboard_artist",
+        agent_role=agent_role,
         content=[{"type": "text", "text": "hi"}],
     )
 
-    assert request.agent_role == "storyboard_artist"
+    assert request.agent_role == agent_role
+    assert model_messages(agent_role, None, [{"type": "text", "text": "hi"}])[0]["content"] == load_role_prompt(agent_role)
 
 
 def test_run_request_ignores_legacy_message_ids():

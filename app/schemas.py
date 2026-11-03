@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 from app.role_prompts import SUPPORTED_AGENT_ROLES, is_supported_agent_role
 
@@ -76,6 +76,81 @@ class Usage(BaseModel):
     total_tokens: int = 0
 
 
+class RunCreateRequest(RunRequest):
+    # Optional legacy field; the API binds the actual identity from the session.
+    user_id: str | None = Field(default=None, min_length=1)
+
+
+class LoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=100)
+    password: SecretStr = Field(min_length=1, max_length=1024)
+
+
+class CurrentUser(BaseModel):
+    user_id: str
+    username: str
+    access_level: int = Field(ge=1, le=3)
+    is_admin: bool
+
+
+class LoginResponse(BaseModel):
+    access_token: str
+    token_type: Literal["bearer"] = "bearer"
+    expires_at: datetime
+    user: CurrentUser
+
+
+class ManagedUser(CurrentUser):
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+    last_login_at: datetime | None = None
+
+
+class ManagedUserList(BaseModel):
+    users: list[ManagedUser]
+    total: int
+
+
+class AccountCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    username: str = Field(min_length=1, max_length=100)
+    password: SecretStr = Field(min_length=1, max_length=1024)
+    access_level: int = Field(default=1, ge=1, le=3, strict=True)
+    is_admin: bool = False
+    is_active: bool = True
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("账号不能为空")
+        return value
+
+
+class AccountUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    username: str | None = Field(default=None, min_length=1, max_length=100)
+    password: SecretStr | None = Field(default=None, min_length=1, max_length=1024)
+    access_level: int | None = Field(default=None, ge=1, le=3, strict=True)
+    is_admin: bool | None = None
+    is_active: bool | None = None
+
+    @field_validator("username")
+    @classmethod
+    def normalize_username(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return AccountCreate.normalize_username(value)
+
+    @model_validator(mode="after")
+    def require_changes(self) -> "AccountUpdate":
+        if not self.model_fields_set or any(getattr(self, field) is None for field in self.model_fields_set):
+            raise ValueError("请提供需要修改的字段，字段值不能为 null")
+        return self
+
+
 class ErrorInfo(BaseModel):
     code: str
     message: str
@@ -96,10 +171,11 @@ class RunResponse(BaseModel):
     usage: Usage = Field(default_factory=Usage)
     error: ErrorInfo | None = None
     todos: list[TodoItem] = Field(default_factory=list)
+    artifacts: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class ContextResetRequest(BaseModel):
-    user_id: str = Field(min_length=1)
+    user_id: str | None = Field(default=None, min_length=1)
 
 
 class ContextResetResponse(BaseModel):

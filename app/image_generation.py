@@ -2,17 +2,16 @@
 
 from __future__ import annotations
 
-import mimetypes
 import tempfile
 import uuid
 from base64 import b64decode
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 from app.config import Settings
+from app.object_storage import upload_file
 
 
 class ImageGenerationError(RuntimeError):
@@ -253,39 +252,9 @@ class ImageGenerationService:
 
     def _upload(self, local_file: Path, object_key: str) -> dict[str, str]:
         try:
-            from qcloud_cos import CosConfig, CosS3Client
-            from qcloud_cos.cos_exception import CosClientError, CosServiceError
-
-            client = CosS3Client(
-                CosConfig(
-                    Region=self.settings.cos_region,
-                    SecretId=self.settings.cos_secret_id,
-                    SecretKey=self.settings.cos_secret_key,
-                    Scheme=self.settings.cos_scheme,
-                )
-            )
-            mime_type = mimetypes.guess_type(local_file.name)[0] or "image/png"
-            client.upload_file(
-                Bucket=self.settings.cos_bucket,
-                Key=object_key,
-                LocalFilePath=str(local_file),
-                PartSize=self.settings.image_upload_part_size_mb,
-                MAXThread=self.settings.image_upload_max_threads,
-                EnableMD5=False,
-                ContentType=mime_type,
-                ACL=self.settings.image_upload_acl,
-            )
-        except (CosClientError, CosServiceError) as exc:
-            raise ImageGenerationError("生成的图片上传失败") from exc
+            return upload_file(self.settings, local_file, object_key)
         except Exception as exc:
             raise ImageGenerationError("生成的图片上传失败") from exc
-
-        encoded_key = quote(object_key, safe="/")
-        return {
-            "url": f"{self.settings.cos_scheme}://{self.settings.cos_bucket}.cos."
-            f"{self.settings.cos_region}.myqcloud.com/{encoded_key}",
-            "mime_type": mime_type,
-        }
 
     def _object_key(self, request_id: str, index: int, suffix: str) -> str:
         prefix = self.settings.image_upload_prefix.strip("/")

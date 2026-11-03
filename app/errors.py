@@ -135,7 +135,7 @@ async def validation_exception_handler(request: FastAPIRequest, exc: RequestVali
         status_code=422,
         content={
             "error": error_info(ErrorCode.VALIDATION_FAILED),
-            "details": jsonable_encoder(exc.errors()),
+            "details": jsonable_encoder([{key: value for key, value in error.items() if key != "input"} for error in exc.errors()]),
         },
     )
 

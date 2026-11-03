@@ -2,11 +2,13 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
+from psycopg import sql
 from psycopg.rows import dict_row
 from psycopg.types.json import Jsonb
 from psycopg_pool import ConnectionPool
 
 from app.config import Settings, get_settings
+from app.passwords import hash_password
 from app.retry import retry_sync
 
 
@@ -45,6 +47,30 @@ class BusinessStore:
 
     def setup(self) -> None:
         with self.connection() as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS app_users (
+                    user_id TEXT PRIMARY KEY CHECK (length(btrim(user_id)) > 0),
+                    username TEXT NOT NULL UNIQUE CHECK (length(btrim(username)) > 0),
+                    password TEXT NOT NULL CHECK (length(password) > 0),
+                    access_level SMALLINT NOT NULL DEFAULT 1 CHECK (access_level BETWEEN 1 AND 3),
+                    is_admin BOOLEAN NOT NULL DEFAULT false,
+                    is_active BOOLEAN NOT NULL DEFAULT true,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    last_login_at TIMESTAMPTZ
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS auth_sessions (
+                    token_hash TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL REFERENCES app_users(user_id) ON DELETE CASCADE,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+                    expires_at TIMESTAMPTZ NOT NULL
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_sessions_user ON auth_sessions (user_id)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_auth_sessions_expiry ON auth_sessions (expires_at)")
+            self._ensure_default_admin(conn)
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS agent_threads (
@@ -184,6 +210,118 @@ class BusinessStore:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_event_logs_run ON agent_event_logs (run_id, created_at ASC)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_event_logs_thread ON agent_event_logs (user_id, thread_id, created_at ASC)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_agent_event_logs_status ON agent_event_logs (status, created_at DESC)")
+            conn.commit()
+
+    def _ensure_default_admin(self, conn) -> None:
+        # A fixed ID makes this one-time seed safe even after renaming the login account.
+        if conn.execute("SELECT 1 FROM app_users WHERE user_id = 'admin'").fetchone():
+            return
+        conn.execute("""
+            INSERT INTO app_users (user_id, username, password, access_level, is_admin, is_active)
+            VALUES ('admin', %s, %s, 3, true, true)
+            ON CONFLICT DO NOTHING
+        """, (self.settings.auth_admin_username, hash_password(self.settings.auth_admin_password)))
+
+    def ensure_default_admin(self) -> None:
+        with self.connection() as conn:
+            self._ensure_default_admin(conn)
+            conn.commit()
+
+    def list_accounts(self, search: str, limit: int, offset: int) -> dict[str, Any]:
+        with self.connection() as conn:
+            pattern = f"%{search}%"
+            total = conn.execute("SELECT count(*) AS n FROM app_users WHERE username ILIKE %s", (pattern,)).fetchone()["n"]
+            rows = conn.execute("""
+                SELECT user_id, username, access_level, is_admin, is_active, created_at, updated_at, last_login_at
+                FROM app_users WHERE username ILIKE %s
+                ORDER BY created_at DESC, user_id LIMIT %s OFFSET %s
+            """, (pattern, limit, offset)).fetchall()
+            return {"users": rows, "total": total}
+
+    def create_account(self, values: dict[str, Any]) -> dict[str, Any]:
+        with self.connection() as conn:
+            row = conn.execute("""
+                INSERT INTO app_users (user_id, username, password, access_level, is_admin, is_active)
+                VALUES (%s, %s, %s, %s, %s, %s)
+                RETURNING user_id, username, access_level, is_admin, is_active, created_at, updated_at, last_login_at
+            """, (f"user_{uuid4().hex}", values["username"], hash_password(values["password"]),
+                  values["access_level"], values["is_admin"], values["is_active"])).fetchone()
+            conn.commit()
+            return row
+
+    def update_account(self, user_id: str, actor_id: str, values: dict[str, Any]) -> dict[str, Any] | None:
+        from app.auth import auth_error
+
+        allowed = {"username", "password", "access_level", "is_admin", "is_active"}
+        if not values or set(values) - allowed:
+            raise ValueError("Unsupported account changes")
+        values = dict(values)
+        if "password" in values:
+            values["password"] = hash_password(values["password"])
+        with self.connection() as conn:
+            # Lock and recheck the actor to prevent writes after another admin revokes their role.
+            # Consistent lock ordering also avoids deadlocks between two editing administrators.
+            rows = conn.execute(
+                "SELECT user_id, is_admin, is_active FROM app_users "
+                "WHERE user_id IN (%s, %s) ORDER BY user_id FOR UPDATE", (actor_id, user_id),
+            ).fetchall()
+            by_id = {row["user_id"]: row for row in rows}
+            actor = by_id.get(actor_id)
+            if not actor or not actor["is_admin"] or not actor["is_active"]:
+                raise auth_error(403, "ACCESS_DENIED", "需要管理员权限")
+            if user_id not in by_id:
+                return None
+            if user_id == actor_id and (values.get("is_admin") is False or values.get("is_active") is False):
+                raise auth_error(403, "SELF_ACCOUNT_PROTECTED", "不能停用当前账号或取消自己的管理员权限")
+            assignments = sql.SQL(", ").join(
+                sql.SQL("{} = %s").format(sql.Identifier(field)) for field in values
+            )
+            row = conn.execute(sql.SQL("""
+                UPDATE app_users SET {}, updated_at = now() WHERE user_id = %s
+                RETURNING user_id, username, access_level, is_admin, is_active, created_at, updated_at, last_login_at
+            """).format(assignments), (*values.values(), user_id)).fetchone()
+            if "password" in values or values.get("is_active") is False:
+                conn.execute("DELETE FROM auth_sessions WHERE user_id = %s", (user_id,))
+            conn.commit()
+            return row
+
+    def get_login_user(self, username: str) -> dict[str, Any] | None:
+        with self.connection() as conn:
+            return conn.execute(
+                "SELECT * FROM app_users WHERE username = %s", (username,)
+            ).fetchone()
+
+    def create_auth_session(self, user_id: str, password_hash: str, token_hash: str, expires_at: datetime) -> bool:
+        with self.connection() as conn:
+            # Recheck credentials under a row lock so disabling an account during login is respected.
+            user = conn.execute(
+                "SELECT user_id FROM app_users WHERE user_id = %s AND password = %s "
+                "AND is_active = true FOR UPDATE", (user_id, password_hash),
+            ).fetchone()
+            if user is None:
+                return False
+            conn.execute("DELETE FROM auth_sessions WHERE expires_at <= now()")
+            conn.execute(
+                "INSERT INTO auth_sessions (token_hash, user_id, expires_at) VALUES (%s, %s, %s)",
+                (token_hash, user_id, expires_at),
+            )
+            conn.execute(
+                "UPDATE app_users SET last_login_at = now() WHERE user_id = %s", (user_id,)
+            )
+            conn.commit()
+            return True
+
+    def get_session_user(self, token_hash: str) -> dict[str, Any] | None:
+        with self.connection() as conn:
+            return conn.execute("""
+                SELECT u.user_id, u.username, u.access_level, u.is_admin
+                FROM auth_sessions s JOIN app_users u ON u.user_id = s.user_id
+                WHERE s.token_hash = %s AND s.expires_at > now() AND u.is_active = true
+            """, (token_hash,)).fetchone()
+
+    def delete_auth_session(self, token_hash: str) -> None:
+        with self.connection() as conn:
+            conn.execute("DELETE FROM auth_sessions WHERE token_hash = %s", (token_hash,))
             conn.commit()
 
     def start_api_request_log(

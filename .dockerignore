@@ -16,3 +16,7 @@ scripts/
 alembic/
 README.md
 version.md
+
+# Skill scripts are runtime tool entrypoints and must be shipped with the app.
+!skills/
+!skills/**

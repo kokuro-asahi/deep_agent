@@ -57,6 +57,66 @@ def tool_result_content(payload: Any) -> Any:
     return payload
 
 
+def artifacts_from_tool_trace(message: dict[str, Any]) -> list[dict[str, Any]]:
+    """Expose generated images and downloadable presentations to API clients."""
+    return [*image_artifacts_from_tool_trace(message), *file_artifacts_from_tool_trace(message)]
+
+
+def file_artifacts_from_tool_trace(message: dict[str, Any]) -> list[dict[str, Any]]:
+    if message.get("role") != "tool_callback":
+        return []
+    content = message.get("content", [])
+    if not isinstance(content, list) or not content or not isinstance(content[0], dict):
+        return []
+    record = content[0]
+    if record.get("status") == "error" or record.get("tool_name") != "generate_ppt":
+        return []
+    result = tool_result_content(record.get("result"))
+    if not isinstance(result, dict) or result.get("status") != "succeeded":
+        return []
+    files = result.get("files")
+    if not isinstance(files, list):
+        return []
+    artifacts = []
+    for index, file in enumerate(files):
+        if not isinstance(file, dict) or not isinstance(file.get("url"), str):
+            continue
+        if urlparse(file["url"]).scheme not in {"https", "http"}:
+            continue
+        artifacts.append({
+            "artifact_id": str(file.get("id") or f"{result.get('request_id', 'ppt')}_{index + 1}"),
+            "type": "file",
+            "metadata": {
+                "url": file["url"],
+                "file_name": file.get("file_name") or "presentation.pptx",
+                "mime_type": file.get("mime_type") or "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                "size_bytes": file.get("size_bytes"),
+                "slide_count": file.get("slide_count"),
+                "theme": file.get("theme"),
+                "theme_name": file.get("theme_name"),
+                **_file_preview_metadata(file),
+                "expires_at": None,
+            },
+        })
+    return artifacts
+
+
+def _file_preview_metadata(file: dict[str, Any]) -> dict[str, Any]:
+    metadata = {"preview_status": file.get("preview_status")}
+    preview_url = file.get("preview_url")
+    if isinstance(preview_url, str):
+        try:
+            preview = urlparse(preview_url)
+            source = urlparse(file["url"])
+            if (file.get("preview_status") == "ready" and file.get("preview_mime_type") == "application/pdf"
+                    and preview.scheme in {"http", "https"} and preview.netloc == source.netloc
+                    and not preview.username and not preview.password and preview.path.lower().endswith(".pdf")):
+                metadata.update(preview_url=preview_url, preview_mime_type="application/pdf")
+        except ValueError:
+            pass
+    return metadata
+
+
 def image_artifacts_from_tool_trace(message: dict[str, Any]) -> list[dict[str, Any]]:
     """Extract public image artifacts from a successful generate_image callback."""
     if message.get("role") != "tool_callback":

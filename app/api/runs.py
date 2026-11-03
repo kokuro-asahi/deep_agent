@@ -1,7 +1,8 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
-from app.schemas import RunRequest, RunResponse
+from app.auth import get_current_user, require_own_user
+from app.schemas import CurrentUser, RunCreateRequest, RunRequest, RunResponse
 from app.services import RunService
 from app.skills import skill_registry
 from app.sse import stream_events
@@ -10,7 +11,9 @@ router = APIRouter(prefix="/v1", tags=["runs"])
 
 
 @router.post("/runs", response_model=RunResponse)
-async def create_run(request: RunRequest):
+async def create_run(body: RunCreateRequest, user: CurrentUser = Depends(get_current_user)):
+    user_id = require_own_user(user, body.user_id)
+    request = RunRequest.model_validate({**body.model_dump(), "user_id": user_id})
     if not request.thread_id:
         try:
             skill_registry.paths_for(request.active_skill_ids)

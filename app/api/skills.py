@@ -1,8 +1,10 @@
-from fastapi import APIRouter
+from app.auth import get_current_user
+
+from fastapi import APIRouter, Depends
 
 from app.skills import skill_registry
 
-router = APIRouter(prefix="/v1", tags=["skills"])
+router = APIRouter(prefix="/v1", tags=["skills"], dependencies=[Depends(get_current_user)])
 
 
 @router.get("/skills")

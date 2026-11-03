@@ -49,6 +49,11 @@ def _bool_env(name: str, default: bool) -> bool:
 
 
 class Settings:
+    auth_session_ttl_seconds: int = max(60, _int_env("AUTH_SESSION_TTL_SECONDS", 86400))
+    auth_cookie_secure: bool = _bool_env("AUTH_COOKIE_SECURE", False)
+    cors_allowed_origins: tuple[str, ...] = tuple(_csv_env(getenv("CORS_ALLOWED_ORIGINS")))
+    auth_admin_username: str = getenv("AUTH_ADMIN_USERNAME", "admin")
+    auth_admin_password: str = getenv("AUTH_ADMIN_PASSWORD", "admin")
     pg_user: str = getenv("PG_USER", "agent")
     pg_password: str = getenv("PG_PASSWORD", "agent")
     pg_database: str = getenv("PG_DATABASE", "agent_backend")
@@ -77,6 +82,13 @@ class Settings:
     cos_region: str = getenv("COS_REGION", "ap-guangzhou")
     cos_bucket: str | None = getenv("COS_BUCKET")
     cos_scheme: str = getenv("COS_SCHEME", "https")
+
+    ppt_generation_enabled: bool = _bool_env("PPT_GENERATION_ENABLED", True)
+    ppt_upload_prefix: str = getenv("PPT_UPLOAD_PREFIX", "presentations")
+    ppt_font_name: str = getenv("PPT_FONT_NAME", "Microsoft YaHei")
+    ppt_preview_enabled: bool = _bool_env("PPT_PREVIEW_ENABLED", True)
+    ppt_preview_command: str = getenv("PPT_PREVIEW_COMMAND", "libreoffice")
+    ppt_preview_timeout_seconds: int = _int_env("PPT_PREVIEW_TIMEOUT_SECONDS", 90)
 
     image_generation_enabled: bool = _bool_env("IMAGE_GENERATION_ENABLED", False)
     # Any OpenAI-compatible image endpoint. No provider-specific environment

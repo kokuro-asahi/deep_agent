@@ -71,7 +71,8 @@ DEFAULT_GUARD_RESPONSE = MODEL_DISCLOSURE_RESPONSE
 def main() -> None:
     parser = argparse.ArgumentParser(description="Benchmark /v1/runs latency.")
     parser.add_argument("--url", default="http://127.0.0.1:8083/v1/runs")
-    parser.add_argument("--user-id", default="latency_bench")
+    parser.add_argument("--user-id", help="Optional legacy ID; must match the authenticated account.")
+    parser.add_argument("--token", default=os.getenv("AGENT_AUTH_TOKEN"), help="Login bearer token (or AGENT_AUTH_TOKEN).")
     parser.add_argument("--agent-role", default="director")
     parser.add_argument("--prompt", help="Use one fixed prompt instead of built-in prompts.")
     parser.add_argument(
@@ -102,6 +103,8 @@ def main() -> None:
 
 
 async def run_benchmark(args: argparse.Namespace) -> None:
+    if not args.token:
+        raise SystemExit("Set AGENT_AUTH_TOKEN or --token to the access_token returned by /v1/auth/login")
     if args.runs is not None and args.runs < 1:
         raise SystemExit("--runs must be at least 1")
     if args.concurrency < 1:
@@ -115,7 +118,8 @@ async def run_benchmark(args: argparse.Namespace) -> None:
     limits = httpx.Limits(max_connections=args.concurrency, max_keepalive_connections=args.concurrency)
 
     started_all = time.perf_counter()
-    async with httpx.AsyncClient(timeout=args.timeout, limits=limits) as client:
+    async with httpx.AsyncClient(timeout=args.timeout, limits=limits,
+                                 headers={"Authorization": f"Bearer {args.token}"}) as client:
         tasks = [
             asyncio.create_task(run_one(client, semaphore, args, index + 1, prompt))
             for index, prompt in enumerate(prompts)
@@ -153,12 +157,13 @@ async def run_one(
 ) -> dict:
     async with semaphore:
         body = {
-            "user_id": args.user_id,
             "stream": not args.json,
             "agent_role": args.agent_role,
             "content": [{"type": "text", "text": prompt}],
             "metadata": {"benchmark": True, "iteration": index, "prompt": prompt},
         }
+        if args.user_id:
+            body["user_id"] = args.user_id
 
         started = time.perf_counter()
         try:

@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import json
+import os
 import sys
 import time
 from datetime import datetime
@@ -20,7 +21,8 @@ DEFAULT_ACTIVE_SKILL_IDS = ["enterprise-policy"]
 def main() -> None:
     parser = argparse.ArgumentParser(description="Record one enterprise-policy streaming /v1/runs response.")
     parser.add_argument("--url", default="http://127.0.0.1:8089/v1/runs")
-    parser.add_argument("--user-id", default="stream_recorder")
+    parser.add_argument("--user-id", help="Optional legacy ID; must match the authenticated account.")
+    parser.add_argument("--token", default=os.getenv("AGENT_AUTH_TOKEN"), help="Login bearer token (or AGENT_AUTH_TOKEN).")
     parser.add_argument("--thread-id", default=None, help="Reuse an existing thread and its saved skill configuration.")
     parser.add_argument("--prompt", default=DEFAULT_PROMPT)
     parser.add_argument("--out-dir", default="stream_records")
@@ -30,6 +32,8 @@ def main() -> None:
 
 
 async def record_stream(args: argparse.Namespace) -> None:
+    if not args.token:
+        raise SystemExit("Set AGENT_AUTH_TOKEN or --token to the access_token returned by /v1/auth/login")
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -39,10 +43,11 @@ async def record_stream(args: argparse.Namespace) -> None:
     summary_path = prefix.with_suffix(".summary.json")
 
     payload: dict[str, Any] = {
-        "user_id": args.user_id,
         "stream": True,
         "content": [{"type": "text", "text": args.prompt}],
     }
+    if args.user_id:
+        payload["user_id"] = args.user_id
     if args.thread_id:
         payload["thread_id"] = args.thread_id
     else:
@@ -56,7 +61,8 @@ async def record_stream(args: argparse.Namespace) -> None:
     assistant_parts: list[str] = []
     buffer = ""
 
-    async with httpx.AsyncClient(timeout=args.timeout) as client:
+    async with httpx.AsyncClient(timeout=args.timeout,
+                                 headers={"Authorization": f"Bearer {args.token}"}) as client:
         async with client.stream("POST", args.url, json=payload) as response:
             if response.is_error:
                 error_body = await response.aread()
@@ -83,7 +89,7 @@ async def record_stream(args: argparse.Namespace) -> None:
         "prompt": args.prompt,
         "agent_role": None if args.thread_id else DEFAULT_AGENT_ROLE,
         "active_skill_ids": [] if args.thread_id else DEFAULT_ACTIVE_SKILL_IDS,
-        "user_id": args.user_id,
+        "user_id": last_value(records, "user_id"),
         "thread_id": last_value(records, "thread_id"),
         "run_id": last_value(records, "run_id"),
         "event_count": len(records),
