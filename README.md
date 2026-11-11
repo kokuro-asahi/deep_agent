@@ -27,6 +27,12 @@ Phase-one backend for the Agent interface described in the attached API and tech
 
 ## Local Setup
 
+DeepAgents is pinned to stable `0.7.35` (verified 2026-11-11), with compatible
+LangChain/LangGraph dependencies. Upgrade, checkpoint validation, deployment and
+rollback instructions: [DeepAgents migration](docs/migrations/deepagents-0.7.35.md).
+On this host, use the dedicated `deepagent_0734` Conda environment; the old
+`deepagent` Conda environment is shared with another application.
+
 ```bash
 python -m venv .venv
 . .venv/bin/activate
@@ -34,6 +40,9 @@ pip install -r requirements.txt
 cp .env.example .env
 uvicorn app.main:app --reload
 ```
+
+`bash start.sh` uses Conda environment `deepagent_0734` and port `8089` by default. Set `PORT=8083`
+for the other instance, or `AGENT_PYTHON=/path/to/python` to select an interpreter.
 
 `AGENT_BACKEND=echo` is the default development mode. Set `AGENT_BACKEND=deepagents` and provide model credentials to use Deep Agents.
 Set `BOCHA_API_KEY` to enable the `bocha_search` web search tool.
@@ -199,7 +208,7 @@ against a running `deepagents` service: once with `MODEL_GUARD_ENABLED=true`,
 then restart with `MODEL_GUARD_ENABLED=false` and run it again.
 
 ```bash
-/opt/miniconda3/envs/deepagent/bin/python scripts/benchmark_latency.py --concurrency 5
+/opt/miniconda3/envs/deepagent_0734/bin/python scripts/benchmark_latency.py --concurrency 5
 ```
 
 The script reports streaming time to first `message.delta` and total completion

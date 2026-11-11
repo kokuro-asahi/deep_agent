@@ -1,0 +1,867 @@
+{
+  "versions": {
+    "deepagents": "0.7.0b2",
+    "langchain": "1.3.14",
+    "langchain-core": "1.5.1",
+    "langgraph": "1.2.9",
+    "langgraph-checkpoint": "4.1.1"
+  },
+  "config": {
+    "configurable": {
+      "thread_id": "migration-user:legacy:v1"
+    }
+  },
+  "storage": {
+    "entries": [
+      [
+        "migration-user:legacy:v1",
+        {
+          "entries": [
+            [
+              "",
+              {
+                "entries": [
+                  [
+                    "1f1dd831-5461-60f7-bfff-3438f39c8cdb",
+                    [
+                      [
+                        "msgpack",
+                        {
+                          "base64": "hqF2BKJ0c9kgMjAyNi0xMS0xMVQwMzo1MDo0OS4yNTYzNTkrMDA6MDCiaWTZJDFmMWRkODMxLTU0NjEtNjBmNy1iZmZmLTM0MzhmMzljOGNkYrBjaGFubmVsX3ZlcnNpb25zgalfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxLjAuNzI1NjkyNjcyMzkxNzExMq12ZXJzaW9uc19zZWVugalfX2lucHV0X1+AsHVwZGF0ZWRfY2hhbm5lbHORqV9fc3RhcnRfXw=="
+                        }
+                      ],
+                      [
+                        "msgpack",
+                        {
+                          "base64": "haZzb3VyY2WlaW5wdXSkc3RlcP+ncGFyZW50c4C9Y291bnRlcnNfc2luY2VfZGVsdGFfc25hcHNob3SCqG1lc3NhZ2VzkgABpWZpbGVzkgABrmxzX2ludGVncmF0aW9uqmRlZXBhZ2VudHM="
+                        }
+                      ],
+                      null
+                    ]
+                  ],
+                  [
+                    "1f1dd831-5463-6ea3-8000-aaf1c7b3ff3a",
+                    [
+                      [
+                        "msgpack",
+                        {
+                          "base64": "hqF2BKJ0c9kgMjAyNi0xMS0xMVQwMzo1MDo0OS4yNTc1MjgrMDA6MDCiaWTZJDFmMWRkODMxLTU0NjMtNmVhMy04MDAwLWFhZjFjN2IzZmYzYbBjaGFubmVsX3ZlcnNpb25zg6lfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyLjAuNjk3MzUwMjQxOTc1OTIwNahtZXNzYWdlc9kzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDIuMC42OTczNTAyNDE5NzU5MjA12S9icmFuY2g6dG86UGF0Y2hUb29sQ2FsbHNNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudNkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDIuMC42OTczNTAyNDE5NzU5MjA1rXZlcnNpb25zX3NlZW6CqV9faW5wdXRfX4CpX19zdGFydF9fgalfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxLjAuNzI1NjkyNjcyMzkxNzExMrB1cGRhdGVkX2NoYW5uZWxzktkvYnJhbmNoOnRvOlBhdGNoVG9vbENhbGxzTWlkZGxld2FyZS5iZWZvcmVfYWdlbnSobWVzc2FnZXM="
+                        }
+                      ],
+                      [
+                        "msgpack",
+                        {
+                          "base64": "haZzb3VyY2WkbG9vcKRzdGVwAKdwYXJlbnRzgL1jb3VudGVyc19zaW5jZV9kZWx0YV9zbmFwc2hvdIKobWVzc2FnZXOSAQKlZmlsZXOSAAKubHNfaW50ZWdyYXRpb26qZGVlcGFnZW50cw=="
+                        }
+                      ],
+                      "1f1dd831-5461-60f7-bfff-3438f39c8cdb"
+                    ]
+                  ],
+                  [
+                    "1f1dd831-5467-6bec-8001-fbea29124a8d",
+                    [
+                      [
+                        "msgpack",
+                        {
+                          "base64": "hqF2BKJ0c9kgMjAyNi0xMS0xMVQwMzo1MDo0OS4yNTkwOTgrMDA6MDCiaWTZJDFmMWRkODMxLTU0NjctNmJlYy04MDAxLWZiZWEyOTEyNGE4ZLBjaGFubmVsX3ZlcnNpb25zhKlfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyLjAuNjk3MzUwMjQxOTc1OTIwNahtZXNzYWdlc9kzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDIuMC42OTczNTAyNDE5NzU5MjA12S9icmFuY2g6dG86UGF0Y2hUb29sQ2FsbHNNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudNkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDMuMC4yMDk1MzE5NzIzNjA4MzQx2SticmFuY2g6dG86Um9sZVByb21wdE1pZGRsZXdhcmUuYmVmb3JlX2FnZW502TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMy4wLjIwOTUzMTk3MjM2MDgzNDGtdmVyc2lvbnNfc2VlboOpX19pbnB1dF9fgKlfX3N0YXJ0X1+BqV9fc3RhcnRfX9kzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDEuMC43MjU2OTI2NzIzOTE3MTEy2SVQYXRjaFRvb2xDYWxsc01pZGRsZXdhcmUuYmVmb3JlX2FnZW50gdkvYnJhbmNoOnRvOlBhdGNoVG9vbENhbGxzTWlkZGxld2FyZS5iZWZvcmVfYWdlbnTZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyLjAuNjk3MzUwMjQxOTc1OTIwNbB1cGRhdGVkX2NoYW5uZWxzkdkrYnJhbmNoOnRvOlJvbGVQcm9tcHRNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudA=="
+                        }
+                      ],
+                      [
+                        "msgpack",
+                        {
+                          "base64": "haZzb3VyY2WkbG9vcKRzdGVwAadwYXJlbnRzgL1jb3VudGVyc19zaW5jZV9kZWx0YV9zbmFwc2hvdIKobWVzc2FnZXOSAQOlZmlsZXOSAAOubHNfaW50ZWdyYXRpb26qZGVlcGFnZW50cw=="
+                        }
+                      ],
+                      "1f1dd831-5463-6ea3-8000-aaf1c7b3ff3a"
+                    ]
+                  ],
+                  [
+                    "1f1dd831-546a-68c2-8002-3b0968ac7608",
+                    [
+                      [
+                        "msgpack",
+                        {
+                          "base64": "hqF2BKJ0c9kgMjAyNi0xMS0xMVQwMzo1MDo0OS4yNjAyNDUrMDA6MDCiaWTZJDFmMWRkODMxLTU0NmEtNjhjMi04MDAyLTNiMDk2OGFjNzYwOLBjaGFubmVsX3ZlcnNpb25zhqlfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyLjAuNjk3MzUwMjQxOTc1OTIwNahtZXNzYWdlc9kzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDQuMC44NDgzMzIyNzQxMDgyNDMx2S9icmFuY2g6dG86UGF0Y2hUb29sQ2FsbHNNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudNkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDMuMC4yMDk1MzE5NzIzNjA4MzQx2SticmFuY2g6dG86Um9sZVByb21wdE1pZGRsZXdhcmUuYmVmb3JlX2FnZW502TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNC4wLjg0ODMzMjI3NDEwODI0MzGzcm9sZV9zeXN0ZW1fbWVzc2FnZdkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDQuMC44NDgzMzIyNzQxMDgyNDMxr2JyYW5jaDp0bzptb2RlbNkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDQuMC44NDgzMzIyNzQxMDgyNDMxrXZlcnNpb25zX3NlZW6EqV9faW5wdXRfX4CpX19zdGFydF9fgalfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxLjAuNzI1NjkyNjcyMzkxNzExMtklUGF0Y2hUb29sQ2FsbHNNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudIHZL2JyYW5jaDp0bzpQYXRjaFRvb2xDYWxsc01pZGRsZXdhcmUuYmVmb3JlX2FnZW502TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMi4wLjY5NzM1MDI0MTk3NTkyMDXZIVJvbGVQcm9tcHRNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudIHZK2JyYW5jaDp0bzpSb2xlUHJvbXB0TWlkZGxld2FyZS5iZWZvcmVfYWdlbnTZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAzLjAuMjA5NTMxOTcyMzYwODM0MbB1cGRhdGVkX2NoYW5uZWxzk69icmFuY2g6dG86bW9kZWyobWVzc2FnZXOzcm9sZV9zeXN0ZW1fbWVzc2FnZQ=="
+                        }
+                      ],
+                      [
+                        "msgpack",
+                        {
+                          "base64": "haZzb3VyY2WkbG9vcKRzdGVwAqdwYXJlbnRzgL1jb3VudGVyc19zaW5jZV9kZWx0YV9zbmFwc2hvdIKobWVzc2FnZXOSAgSlZmlsZXOSAASubHNfaW50ZWdyYXRpb26qZGVlcGFnZW50cw=="
+                        }
+                      ],
+                      "1f1dd831-5467-6bec-8001-fbea29124a8d"
+                    ]
+                  ],
+                  [
+                    "1f1dd831-5486-6a86-8003-92e742fc7c23",
+                    [
+                      [
+                        "msgpack",
+                        {
+                          "base64": "hqF2BKJ0c9kgMjAyNi0xMS0xMVQwMzo1MDo0OS4yNzE3NTgrMDA6MDCiaWTZJDFmMWRkODMxLTU0ODYtNmE4Ni04MDAzLTkyZTc0MmZjN2MyM7BjaGFubmVsX3ZlcnNpb25zh6lfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyLjAuNjk3MzUwMjQxOTc1OTIwNahtZXNzYWdlc9kyMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDUuMC40NDA1ODIwMDQ3MjcyMTHZL2JyYW5jaDp0bzpQYXRjaFRvb2xDYWxsc01pZGRsZXdhcmUuYmVmb3JlX2FnZW502TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMy4wLjIwOTUzMTk3MjM2MDgzNDHZK2JyYW5jaDp0bzpSb2xlUHJvbXB0TWlkZGxld2FyZS5iZWZvcmVfYWdlbnTZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA0LjAuODQ4MzMyMjc0MTA4MjQzMbNyb2xlX3N5c3RlbV9tZXNzYWdl2TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNC4wLjg0ODMzMjI3NDEwODI0MzGvYnJhbmNoOnRvOm1vZGVs2TIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNS4wLjQ0MDU4MjAwNDcyNzIxMdkoYnJhbmNoOnRvOlRvZG9MaXN0TWlkZGxld2FyZS5hZnRlcl9tb2RlbNkyMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDUuMC40NDA1ODIwMDQ3MjcyMTGtdmVyc2lvbnNfc2VlboWpX19pbnB1dF9fgKlfX3N0YXJ0X1+BqV9fc3RhcnRfX9kzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDEuMC43MjU2OTI2NzIzOTE3MTEy2SVQYXRjaFRvb2xDYWxsc01pZGRsZXdhcmUuYmVmb3JlX2FnZW50gdkvYnJhbmNoOnRvOlBhdGNoVG9vbENhbGxzTWlkZGxld2FyZS5iZWZvcmVfYWdlbnTZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyLjAuNjk3MzUwMjQxOTc1OTIwNdkhUm9sZVByb21wdE1pZGRsZXdhcmUuYmVmb3JlX2FnZW50gdkrYnJhbmNoOnRvOlJvbGVQcm9tcHRNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudNkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDMuMC4yMDk1MzE5NzIzNjA4MzQxpW1vZGVsga9icmFuY2g6dG86bW9kZWzZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA0LjAuODQ4MzMyMjc0MTA4MjQzMbB1cGRhdGVkX2NoYW5uZWxzktkoYnJhbmNoOnRvOlRvZG9MaXN0TWlkZGxld2FyZS5hZnRlcl9tb2RlbKhtZXNzYWdlcw=="
+                        }
+                      ],
+                      [
+                        "msgpack",
+                        {
+                          "base64": "haZzb3VyY2WkbG9vcKRzdGVwA6dwYXJlbnRzgL1jb3VudGVyc19zaW5jZV9kZWx0YV9zbmFwc2hvdIKobWVzc2FnZXOSAwWlZmlsZXOSAAWubHNfaW50ZWdyYXRpb26qZGVlcGFnZW50cw=="
+                        }
+                      ],
+                      "1f1dd831-546a-68c2-8002-3b0968ac7608"
+                    ]
+                  ],
+                  [
+                    "1f1dd831-5487-6d83-8004-4b8a85252309",
+                    [
+                      [
+                        "msgpack",
+                        {
+                          "base64": "hqF2BKJ0c9kgMjAyNi0xMS0xMVQwMzo1MDo0OS4yNzIyNDUrMDA6MDCiaWTZJDFmMWRkODMxLTU0ODctNmQ4My04MDA0LTRiOGE4NTI1MjMwObBjaGFubmVsX3ZlcnNpb25ziKlfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyLjAuNjk3MzUwMjQxOTc1OTIwNahtZXNzYWdlc9kyMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDUuMC40NDA1ODIwMDQ3MjcyMTHZL2JyYW5jaDp0bzpQYXRjaFRvb2xDYWxsc01pZGRsZXdhcmUuYmVmb3JlX2FnZW502TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMy4wLjIwOTUzMTk3MjM2MDgzNDHZK2JyYW5jaDp0bzpSb2xlUHJvbXB0TWlkZGxld2FyZS5iZWZvcmVfYWdlbnTZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA0LjAuODQ4MzMyMjc0MTA4MjQzMbNyb2xlX3N5c3RlbV9tZXNzYWdl2TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNC4wLjg0ODMzMjI3NDEwODI0MzGvYnJhbmNoOnRvOm1vZGVs2TIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNS4wLjQ0MDU4MjAwNDcyNzIxMdkoYnJhbmNoOnRvOlRvZG9MaXN0TWlkZGxld2FyZS5hZnRlcl9tb2RlbNkyMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDYuMC43MTY0NjYzMDgwMTY5NDiuX19wcmVnZWxfdGFza3PZMjAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA2LjAuNzE2NDY2MzA4MDE2OTQ4rXZlcnNpb25zX3NlZW6GqV9faW5wdXRfX4CpX19zdGFydF9fgalfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxLjAuNzI1NjkyNjcyMzkxNzExMtklUGF0Y2hUb29sQ2FsbHNNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudIHZL2JyYW5jaDp0bzpQYXRjaFRvb2xDYWxsc01pZGRsZXdhcmUuYmVmb3JlX2FnZW502TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMi4wLjY5NzM1MDI0MTk3NTkyMDXZIVJvbGVQcm9tcHRNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudIHZK2JyYW5jaDp0bzpSb2xlUHJvbXB0TWlkZGxld2FyZS5iZWZvcmVfYWdlbnTZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAzLjAuMjA5NTMxOTcyMzYwODM0MaVtb2RlbIGvYnJhbmNoOnRvOm1vZGVs2TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNC4wLjg0ODMzMjI3NDEwODI0MzG+VG9kb0xpc3RNaWRkbGV3YXJlLmFmdGVyX21vZGVsgdkoYnJhbmNoOnRvOlRvZG9MaXN0TWlkZGxld2FyZS5hZnRlcl9tb2RlbNkyMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDUuMC40NDA1ODIwMDQ3MjcyMTGwdXBkYXRlZF9jaGFubmVsc5GuX19wcmVnZWxfdGFza3M="
+                        }
+                      ],
+                      [
+                        "msgpack",
+                        {
+                          "base64": "haZzb3VyY2WkbG9vcKRzdGVwBKdwYXJlbnRzgL1jb3VudGVyc19zaW5jZV9kZWx0YV9zbmFwc2hvdIKobWVzc2FnZXOSAwalZmlsZXOSAAaubHNfaW50ZWdyYXRpb26qZGVlcGFnZW50cw=="
+                        }
+                      ],
+                      "1f1dd831-5486-6a86-8003-92e742fc7c23"
+                    ]
+                  ],
+                  [
+                    "1f1dd831-5491-6064-8005-39fac65b7bff",
+                    [
+                      [
+                        "msgpack",
+                        {
+                          "base64": "hqF2BKJ0c9kgMjAyNi0xMS0xMVQwMzo1MDo0OS4yNzYwMDMrMDA6MDCiaWTZJDFmMWRkODMxLTU0OTEtNjA2NC04MDA1LTM5ZmFjNjViN2JmZrBjaGFubmVsX3ZlcnNpb25zialfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyLjAuNjk3MzUwMjQxOTc1OTIwNahtZXNzYWdlc9kzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDcuMC4zNzQ1MzM5MTcxOTk5NjYz2S9icmFuY2g6dG86UGF0Y2hUb29sQ2FsbHNNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudNkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDMuMC4yMDk1MzE5NzIzNjA4MzQx2SticmFuY2g6dG86Um9sZVByb21wdE1pZGRsZXdhcmUuYmVmb3JlX2FnZW502TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNC4wLjg0ODMzMjI3NDEwODI0MzGzcm9sZV9zeXN0ZW1fbWVzc2FnZdkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDQuMC44NDgzMzIyNzQxMDgyNDMxr2JyYW5jaDp0bzptb2RlbNkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDcuMC4zNzQ1MzM5MTcxOTk5NjYz2ShicmFuY2g6dG86VG9kb0xpc3RNaWRkbGV3YXJlLmFmdGVyX21vZGVs2TIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNi4wLjcxNjQ2NjMwODAxNjk0OK5fX3ByZWdlbF90YXNrc9kzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDcuMC4zNzQ1MzM5MTcxOTk5NjYzpXRvZG9z2TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNy4wLjM3NDUzMzkxNzE5OTk2NjOtdmVyc2lvbnNfc2VlboepX19pbnB1dF9fgKlfX3N0YXJ0X1+BqV9fc3RhcnRfX9kzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDEuMC43MjU2OTI2NzIzOTE3MTEy2SVQYXRjaFRvb2xDYWxsc01pZGRsZXdhcmUuYmVmb3JlX2FnZW50gdkvYnJhbmNoOnRvOlBhdGNoVG9vbENhbGxzTWlkZGxld2FyZS5iZWZvcmVfYWdlbnTZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyLjAuNjk3MzUwMjQxOTc1OTIwNdkhUm9sZVByb21wdE1pZGRsZXdhcmUuYmVmb3JlX2FnZW50gdkrYnJhbmNoOnRvOlJvbGVQcm9tcHRNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudNkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDMuMC4yMDk1MzE5NzIzNjA4MzQxpW1vZGVsga9icmFuY2g6dG86bW9kZWzZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA0LjAuODQ4MzMyMjc0MTA4MjQzMb5Ub2RvTGlzdE1pZGRsZXdhcmUuYWZ0ZXJfbW9kZWyB2ShicmFuY2g6dG86VG9kb0xpc3RNaWRkbGV3YXJlLmFmdGVyX21vZGVs2TIwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNS4wLjQ0MDU4MjAwNDcyNzIxMaV0b29sc4CwdXBkYXRlZF9jaGFubmVsc5OvYnJhbmNoOnRvOm1vZGVsqG1lc3NhZ2VzpXRvZG9z"
+                        }
+                      ],
+                      [
+                        "msgpack",
+                        {
+                          "base64": "haZzb3VyY2WkbG9vcKRzdGVwBadwYXJlbnRzgL1jb3VudGVyc19zaW5jZV9kZWx0YV9zbmFwc2hvdIKobWVzc2FnZXOSBAelZmlsZXOSAAeubHNfaW50ZWdyYXRpb26qZGVlcGFnZW50cw=="
+                        }
+                      ],
+                      "1f1dd831-5487-6d83-8004-4b8a85252309"
+                    ]
+                  ],
+                  [
+                    "1f1dd831-5498-6ed3-8006-943f6cac97b0",
+                    [
+                      [
+                        "msgpack",
+                        {
+                          "base64": "hqF2BKJ0c9kgMjAyNi0xMS0xMVQwMzo1MDo0OS4yNzkyNDArMDA6MDCiaWTZJDFmMWRkODMxLTU0OTgtNmVkMy04MDA2LTk0M2Y2Y2FjOTdiMLBjaGFubmVsX3ZlcnNpb25zialfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyLjAuNjk3MzUwMjQxOTc1OTIwNahtZXNzYWdlc9kzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDguMC44ODU1NzEyOTE5OTcxNzE22S9icmFuY2g6dG86UGF0Y2hUb29sQ2FsbHNNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudNkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDMuMC4yMDk1MzE5NzIzNjA4MzQx2SticmFuY2g6dG86Um9sZVByb21wdE1pZGRsZXdhcmUuYmVmb3JlX2FnZW502TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNC4wLjg0ODMzMjI3NDEwODI0MzGzcm9sZV9zeXN0ZW1fbWVzc2FnZdkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDQuMC44NDgzMzIyNzQxMDgyNDMxr2JyYW5jaDp0bzptb2RlbNkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDguMC44ODU1NzEyOTE5OTcxNzE22ShicmFuY2g6dG86VG9kb0xpc3RNaWRkbGV3YXJlLmFmdGVyX21vZGVs2TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwOC4wLjg4NTU3MTI5MTk5NzE3MTauX19wcmVnZWxfdGFza3PZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA3LjAuMzc0NTMzOTE3MTk5OTY2M6V0b2Rvc9kzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDcuMC4zNzQ1MzM5MTcxOTk5NjYzrXZlcnNpb25zX3NlZW6HqV9faW5wdXRfX4CpX19zdGFydF9fgalfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxLjAuNzI1NjkyNjcyMzkxNzExMtklUGF0Y2hUb29sQ2FsbHNNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudIHZL2JyYW5jaDp0bzpQYXRjaFRvb2xDYWxsc01pZGRsZXdhcmUuYmVmb3JlX2FnZW502TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMi4wLjY5NzM1MDI0MTk3NTkyMDXZIVJvbGVQcm9tcHRNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudIHZK2JyYW5jaDp0bzpSb2xlUHJvbXB0TWlkZGxld2FyZS5iZWZvcmVfYWdlbnTZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAzLjAuMjA5NTMxOTcyMzYwODM0MaVtb2RlbIGvYnJhbmNoOnRvOm1vZGVs2TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNy4wLjM3NDUzMzkxNzE5OTk2NjO+VG9kb0xpc3RNaWRkbGV3YXJlLmFmdGVyX21vZGVsgdkoYnJhbmNoOnRvOlRvZG9MaXN0TWlkZGxld2FyZS5hZnRlcl9tb2RlbNkyMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDUuMC40NDA1ODIwMDQ3MjcyMTGldG9vbHOAsHVwZGF0ZWRfY2hhbm5lbHOS2ShicmFuY2g6dG86VG9kb0xpc3RNaWRkbGV3YXJlLmFmdGVyX21vZGVsqG1lc3NhZ2Vz"
+                        }
+                      ],
+                      [
+                        "msgpack",
+                        {
+                          "base64": "haZzb3VyY2WkbG9vcKRzdGVwBqdwYXJlbnRzgL1jb3VudGVyc19zaW5jZV9kZWx0YV9zbmFwc2hvdIKobWVzc2FnZXOSBQilZmlsZXOSAAiubHNfaW50ZWdyYXRpb26qZGVlcGFnZW50cw=="
+                        }
+                      ],
+                      "1f1dd831-5491-6064-8005-39fac65b7bff"
+                    ]
+                  ],
+                  [
+                    "1f1dd831-549a-6c19-8007-e977341a794e",
+                    [
+                      [
+                        "msgpack",
+                        {
+                          "base64": "hqF2BKJ0c9kgMjAyNi0xMS0xMVQwMzo1MDo0OS4yNzk5OTArMDA6MDCiaWTZJDFmMWRkODMxLTU0OWEtNmMxOS04MDA3LWU5NzczNDFhNzk0ZbBjaGFubmVsX3ZlcnNpb25zialfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAyLjAuNjk3MzUwMjQxOTc1OTIwNahtZXNzYWdlc9kzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDguMC44ODU1NzEyOTE5OTcxNzE22S9icmFuY2g6dG86UGF0Y2hUb29sQ2FsbHNNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudNkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDMuMC4yMDk1MzE5NzIzNjA4MzQx2SticmFuY2g6dG86Um9sZVByb21wdE1pZGRsZXdhcmUuYmVmb3JlX2FnZW502TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNC4wLjg0ODMzMjI3NDEwODI0MzGzcm9sZV9zeXN0ZW1fbWVzc2FnZdkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDQuMC44NDgzMzIyNzQxMDgyNDMxr2JyYW5jaDp0bzptb2RlbNkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDguMC44ODU1NzEyOTE5OTcxNzE22ShicmFuY2g6dG86VG9kb0xpc3RNaWRkbGV3YXJlLmFmdGVyX21vZGVs2TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwOS4wLjg4OTI0MzI4MDkwMzg1MDeuX19wcmVnZWxfdGFza3PZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDA3LjAuMzc0NTMzOTE3MTk5OTY2M6V0b2Rvc9kzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDcuMC4zNzQ1MzM5MTcxOTk5NjYzrXZlcnNpb25zX3NlZW6HqV9faW5wdXRfX4CpX19zdGFydF9fgalfX3N0YXJ0X1/ZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAxLjAuNzI1NjkyNjcyMzkxNzExMtklUGF0Y2hUb29sQ2FsbHNNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudIHZL2JyYW5jaDp0bzpQYXRjaFRvb2xDYWxsc01pZGRsZXdhcmUuYmVmb3JlX2FnZW502TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMi4wLjY5NzM1MDI0MTk3NTkyMDXZIVJvbGVQcm9tcHRNaWRkbGV3YXJlLmJlZm9yZV9hZ2VudIHZK2JyYW5jaDp0bzpSb2xlUHJvbXB0TWlkZGxld2FyZS5iZWZvcmVfYWdlbnTZMzAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAzLjAuMjA5NTMxOTcyMzYwODM0MaVtb2RlbIGvYnJhbmNoOnRvOm1vZGVs2TMwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwNy4wLjM3NDUzMzkxNzE5OTk2NjO+VG9kb0xpc3RNaWRkbGV3YXJlLmFmdGVyX21vZGVsgdkoYnJhbmNoOnRvOlRvZG9MaXN0TWlkZGxld2FyZS5hZnRlcl9tb2RlbNkzMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDguMC44ODU1NzEyOTE5OTcxNzE2pXRvb2xzgLB1cGRhdGVkX2NoYW5uZWxzkA=="
+                        }
+                      ],
+                      [
+                        "msgpack",
+                        {
+                          "base64": "haZzb3VyY2WkbG9vcKRzdGVwB6dwYXJlbnRzgL1jb3VudGVyc19zaW5jZV9kZWx0YV9zbmFwc2hvdIKobWVzc2FnZXOSBQmlZmlsZXOSAAmubHNfaW50ZWdyYXRpb26qZGVlcGFnZW50cw=="
+                        }
+                      ],
+                      "1f1dd831-5498-6ed3-8006-943f6cac97b0"
+                    ]
+                  ]
+                ]
+              }
+            ]
+          ]
+        }
+      ]
+    ]
+  },
+  "writes": {
+    "entries": [
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "1f1dd831-5461-60f7-bfff-3438f39c8cdb"
+        ],
+        {
+          "entries": [
+            [
+              [
+                "ae0438ae-28f7-a472-f18a-3702c45e98a5",
+                0
+              ],
+              [
+                "ae0438ae-28f7-a472-f18a-3702c45e98a5",
+                "messages",
+                [
+                  "msgpack",
+                  {
+                    "base64": "ksfIBZS+bGFuZ2NoYWluX2NvcmUubWVzc2FnZXMuc3lzdGVtrVN5c3RlbU1lc3NhZ2WGp2NvbnRlbnS75L2g5piv6L+B56e76aqM6K+B5Yqp5omL44CCsWFkZGl0aW9uYWxfa3dhcmdzgLFyZXNwb25zZV9tZXRhZGF0YYCkdHlwZaZzeXN0ZW2kbmFtZcCiaWTZJDQ1M2UwNmVmLWM1MDYtNDM3OC04NTVmLTdmMzQ5MDU1NDdiYrNtb2RlbF92YWxpZGF0ZV9qc29ux80FlL1sYW5nY2hhaW5fY29yZS5tZXNzYWdlcy5odW1hbqxIdW1hbk1lc3NhZ2WGp2NvbnRlbnSRgqR0eXBlpHRleHSkdGV4dLLmlbTnkIbljoblj7LmlrnmoYixYWRkaXRpb25hbF9rd2FyZ3OAsXJlc3BvbnNlX21ldGFkYXRhgKR0eXBlpWh1bWFupG5hbWXAomlk2SQ2ZTRmOWU5Ni1kZmQwLTRlMmYtYmQ0Yi0yMDM5ZmNjNzc0ZmOzbW9kZWxfdmFsaWRhdGVfanNvbg=="
+                  }
+                ],
+                "~__pregel_pull, __start__"
+              ]
+            ],
+            [
+              [
+                "ae0438ae-28f7-a472-f18a-3702c45e98a5",
+                1
+              ],
+              [
+                "ae0438ae-28f7-a472-f18a-3702c45e98a5",
+                "branch:to:PatchToolCallsMiddleware.before_agent",
+                [
+                  "null",
+                  {
+                    "base64": ""
+                  }
+                ],
+                "~__pregel_pull, __start__"
+              ]
+            ]
+          ]
+        }
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "1f1dd831-5463-6ea3-8000-aaf1c7b3ff3a"
+        ],
+        {
+          "entries": [
+            [
+              [
+                "5115e898-1abb-2a56-8ad6-d55cc98d6bba",
+                0
+              ],
+              [
+                "5115e898-1abb-2a56-8ad6-d55cc98d6bba",
+                "branch:to:RolePromptMiddleware.before_agent",
+                [
+                  "null",
+                  {
+                    "base64": ""
+                  }
+                ],
+                "~__pregel_pull, PatchToolCallsMiddleware.before_agent"
+              ]
+            ]
+          ]
+        }
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "1f1dd831-5467-6bec-8001-fbea29124a8d"
+        ],
+        {
+          "entries": [
+            [
+              [
+                "36094c4d-fccc-f9d8-436c-09732a602269",
+                0
+              ],
+              [
+                "36094c4d-fccc-f9d8-436c-09732a602269",
+                "role_system_message",
+                [
+                  "msgpack",
+                  {
+                    "base64": "x8gFlL5sYW5nY2hhaW5fY29yZS5tZXNzYWdlcy5zeXN0ZW2tU3lzdGVtTWVzc2FnZYanY29udGVudLvkvaDmmK/ov4Hnp7vpqozor4HliqnmiYvjgIKxYWRkaXRpb25hbF9rd2FyZ3OAsXJlc3BvbnNlX21ldGFkYXRhgKR0eXBlpnN5c3RlbaRuYW1lwKJpZNkkNDUzZTA2ZWYtYzUwNi00Mzc4LTg1NWYtN2YzNDkwNTU0N2Jis21vZGVsX3ZhbGlkYXRlX2pzb24="
+                  }
+                ],
+                "~__pregel_pull, RolePromptMiddleware.before_agent"
+              ]
+            ],
+            [
+              [
+                "36094c4d-fccc-f9d8-436c-09732a602269",
+                1
+              ],
+              [
+                "36094c4d-fccc-f9d8-436c-09732a602269",
+                "messages",
+                [
+                  "msgpack",
+                  {
+                    "base64": "kcewBZTZIGxhbmdjaGFpbl9jb3JlLm1lc3NhZ2VzLm1vZGlmaWVyrVJlbW92ZU1lc3NhZ2WGp2NvbnRlbnSgsWFkZGl0aW9uYWxfa3dhcmdzgLFyZXNwb25zZV9tZXRhZGF0YYCkdHlwZaZyZW1vdmWkbmFtZcCiaWTZJDQ1M2UwNmVmLWM1MDYtNDM3OC04NTVmLTdmMzQ5MDU1NDdiYrNtb2RlbF92YWxpZGF0ZV9qc29u"
+                  }
+                ],
+                "~__pregel_pull, RolePromptMiddleware.before_agent"
+              ]
+            ],
+            [
+              [
+                "36094c4d-fccc-f9d8-436c-09732a602269",
+                2
+              ],
+              [
+                "36094c4d-fccc-f9d8-436c-09732a602269",
+                "branch:to:model",
+                [
+                  "null",
+                  {
+                    "base64": ""
+                  }
+                ],
+                "~__pregel_pull, RolePromptMiddleware.before_agent"
+              ]
+            ]
+          ]
+        }
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "1f1dd831-546a-68c2-8002-3b0968ac7608"
+        ],
+        {
+          "entries": [
+            [
+              [
+                "38d253ef-2391-bce9-6866-075de147fb41",
+                0
+              ],
+              [
+                "38d253ef-2391-bce9-6866-075de147fb41",
+                "messages",
+                [
+                  "msgpack",
+                  {
+                    "base64": "kcgBRQWUumxhbmdjaGFpbl9jb3JlLm1lc3NhZ2VzLmFpqUFJTWVzc2FnZYmnY29udGVudKCxYWRkaXRpb25hbF9rd2FyZ3OAsXJlc3BvbnNlX21ldGFkYXRhgKR0eXBlomFppG5hbWXAomlk2S5sY19ydW4tLTAxYTFjOGJhLWQyYjctNzJiMi1iOTY3LTVlZTU1OWE5YTI4NC0wqnRvb2xfY2FsbHORhKRuYW1lq3dyaXRlX3RvZG9zpGFyZ3OBpXRvZG9zkYKnY29udGVudLLmlbTnkIbljoblj7LmlrnmoYimc3RhdHVzqWNvbXBsZXRlZKJpZKtsZWdhY3ktcGxhbqR0eXBlqXRvb2xfY2FsbLJpbnZhbGlkX3Rvb2xfY2FsbHOQrnVzYWdlX21ldGFkYXRhwLNtb2RlbF92YWxpZGF0ZV9qc29u"
+                  }
+                ],
+                "~__pregel_pull, model"
+              ]
+            ],
+            [
+              [
+                "38d253ef-2391-bce9-6866-075de147fb41",
+                1
+              ],
+              [
+                "38d253ef-2391-bce9-6866-075de147fb41",
+                "branch:to:TodoListMiddleware.after_model",
+                [
+                  "null",
+                  {
+                    "base64": ""
+                  }
+                ],
+                "~__pregel_pull, model"
+              ]
+            ]
+          ]
+        }
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "1f1dd831-5486-6a86-8003-92e742fc7c23"
+        ],
+        {
+          "entries": [
+            [
+              [
+                "a2765bc2-5f56-1f93-a8c3-892465d8e52a",
+                0
+              ],
+              [
+                "a2765bc2-5f56-1f93-a8c3-892465d8e52a",
+                "__pregel_tasks",
+                [
+                  "msgpack",
+                  {
+                    "base64": "x4gBk69sYW5nZ3JhcGgudHlwZXOkU2VuZJKldG9vbHORhKRuYW1lq3dyaXRlX3RvZG9zpGFyZ3OBpXRvZG9zkYKnY29udGVudLLmlbTnkIbljoblj7LmlrnmoYimc3RhdHVzqWNvbXBsZXRlZKJpZKtsZWdhY3ktcGxhbqR0eXBlqXRvb2xfY2FsbA=="
+                  }
+                ],
+                "~__pregel_pull, TodoListMiddleware.after_model"
+              ]
+            ]
+          ]
+        }
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "1f1dd831-5487-6d83-8004-4b8a85252309"
+        ],
+        {
+          "entries": [
+            [
+              [
+                "e67121fa-05ae-be64-edaa-fd6991874a08",
+                0
+              ],
+              [
+                "e67121fa-05ae-be64-edaa-fd6991874a08",
+                "todos",
+                [
+                  "msgpack",
+                  {
+                    "base64": "kYKnY29udGVudLLmlbTnkIbljoblj7LmlrnmoYimc3RhdHVzqWNvbXBsZXRlZA=="
+                  }
+                ],
+                "~__pregel_push, 0000000000, 0000000000"
+              ]
+            ],
+            [
+              [
+                "e67121fa-05ae-be64-edaa-fd6991874a08",
+                1
+              ],
+              [
+                "e67121fa-05ae-be64-edaa-fd6991874a08",
+                "messages",
+                [
+                  "msgpack",
+                  {
+                    "base64": "kcgBNAWUvGxhbmdjaGFpbl9jb3JlLm1lc3NhZ2VzLnRvb2yrVG9vbE1lc3NhZ2WJp2NvbnRlbnTZT1VwZGF0ZWQgdG9kbyBsaXN0IHRvIFt7J2NvbnRlbnQnOiAn5pW055CG5Y6G5Y+y5pa55qGIJywgJ3N0YXR1cyc6ICdjb21wbGV0ZWQnfV2xYWRkaXRpb25hbF9rd2FyZ3OAsXJlc3BvbnNlX21ldGFkYXRhgKR0eXBlpHRvb2ykbmFtZat3cml0ZV90b2Rvc6JpZNkkYmFkOTg5MTAtOGE0NC00ZDExLTk4ZDMtZjMwNDRiNDUxMDEwrHRvb2xfY2FsbF9pZKtsZWdhY3ktcGxhbqhhcnRpZmFjdMCmc3RhdHVzp3N1Y2Nlc3OzbW9kZWxfdmFsaWRhdGVfanNvbg=="
+                  }
+                ],
+                "~__pregel_push, 0000000000, 0000000000"
+              ]
+            ],
+            [
+              [
+                "e67121fa-05ae-be64-edaa-fd6991874a08",
+                2
+              ],
+              [
+                "e67121fa-05ae-be64-edaa-fd6991874a08",
+                "branch:to:model",
+                [
+                  "null",
+                  {
+                    "base64": ""
+                  }
+                ],
+                "~__pregel_push, 0000000000, 0000000000"
+              ]
+            ]
+          ]
+        }
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "1f1dd831-5491-6064-8005-39fac65b7bff"
+        ],
+        {
+          "entries": [
+            [
+              [
+                "fd249e2a-a7ff-7a36-23a6-301582c4d97c",
+                0
+              ],
+              [
+                "fd249e2a-a7ff-7a36-23a6-301582c4d97c",
+                "messages",
+                [
+                  "msgpack",
+                  {
+                    "base64": "kcfwBZS6bGFuZ2NoYWluX2NvcmUubWVzc2FnZXMuYWmpQUlNZXNzYWdliadjb250ZW50teWOhuWPsuaWueahiOW3suWujOaIkLFhZGRpdGlvbmFsX2t3YXJnc4CxcmVzcG9uc2VfbWV0YWRhdGGApHR5cGWiYWmkbmFtZcCiaWTZLmxjX3J1bi0tMDFhMWM4YmEtZDJiZS03NjQzLWI4MDEtMmNkYTY3OTYzOTBmLTCqdG9vbF9jYWxsc5CyaW52YWxpZF90b29sX2NhbGxzkK51c2FnZV9tZXRhZGF0YcCzbW9kZWxfdmFsaWRhdGVfanNvbg=="
+                  }
+                ],
+                "~__pregel_pull, model"
+              ]
+            ],
+            [
+              [
+                "fd249e2a-a7ff-7a36-23a6-301582c4d97c",
+                1
+              ],
+              [
+                "fd249e2a-a7ff-7a36-23a6-301582c4d97c",
+                "branch:to:TodoListMiddleware.after_model",
+                [
+                  "null",
+                  {
+                    "base64": ""
+                  }
+                ],
+                "~__pregel_pull, model"
+              ]
+            ]
+          ]
+        }
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "1f1dd831-5498-6ed3-8006-943f6cac97b0"
+        ],
+        {
+          "entries": [
+            [
+              [
+                "450bd418-6ffe-b605-c4a9-1ffb48766fe9",
+                0
+              ],
+              [
+                "450bd418-6ffe-b605-c4a9-1ffb48766fe9",
+                "__no_writes__",
+                [
+                  "null",
+                  {
+                    "base64": ""
+                  }
+                ],
+                "~__pregel_pull, TodoListMiddleware.after_model"
+              ]
+            ]
+          ]
+        }
+      ]
+    ]
+  },
+  "blobs": {
+    "entries": [
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "__start__",
+          "00000000000000000000000000000001.0.7256926723917112"
+        ],
+        [
+          "msgpack",
+          {
+            "base64": "gahtZXNzYWdlc5KCpHJvbGWmc3lzdGVtp2NvbnRlbnS75L2g5piv6L+B56e76aqM6K+B5Yqp5omL44CCgqRyb2xlpHVzZXKnY29udGVudJGCpHR5cGWkdGV4dKR0ZXh0suaVtOeQhuWOhuWPsuaWueahiA=="
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "__start__",
+          "00000000000000000000000000000002.0.6973502419759205"
+        ],
+        [
+          "empty",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "messages",
+          "00000000000000000000000000000002.0.6973502419759205"
+        ],
+        [
+          "empty",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "branch:to:PatchToolCallsMiddleware.before_agent",
+          "00000000000000000000000000000002.0.6973502419759205"
+        ],
+        [
+          "null",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "branch:to:PatchToolCallsMiddleware.before_agent",
+          "00000000000000000000000000000003.0.2095319723608341"
+        ],
+        [
+          "empty",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "branch:to:RolePromptMiddleware.before_agent",
+          "00000000000000000000000000000003.0.2095319723608341"
+        ],
+        [
+          "null",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "messages",
+          "00000000000000000000000000000004.0.8483322741082431"
+        ],
+        [
+          "empty",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "branch:to:RolePromptMiddleware.before_agent",
+          "00000000000000000000000000000004.0.8483322741082431"
+        ],
+        [
+          "empty",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "role_system_message",
+          "00000000000000000000000000000004.0.8483322741082431"
+        ],
+        [
+          "msgpack",
+          {
+            "base64": "x8gFlL5sYW5nY2hhaW5fY29yZS5tZXNzYWdlcy5zeXN0ZW2tU3lzdGVtTWVzc2FnZYanY29udGVudLvkvaDmmK/ov4Hnp7vpqozor4HliqnmiYvjgIKxYWRkaXRpb25hbF9rd2FyZ3OAsXJlc3BvbnNlX21ldGFkYXRhgKR0eXBlpnN5c3RlbaRuYW1lwKJpZNkkNDUzZTA2ZWYtYzUwNi00Mzc4LTg1NWYtN2YzNDkwNTU0N2Jis21vZGVsX3ZhbGlkYXRlX2pzb24="
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "branch:to:model",
+          "00000000000000000000000000000004.0.8483322741082431"
+        ],
+        [
+          "null",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "messages",
+          "00000000000000000000000000000005.0.440582004727211"
+        ],
+        [
+          "empty",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "branch:to:model",
+          "00000000000000000000000000000005.0.440582004727211"
+        ],
+        [
+          "empty",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "branch:to:TodoListMiddleware.after_model",
+          "00000000000000000000000000000005.0.440582004727211"
+        ],
+        [
+          "null",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "branch:to:TodoListMiddleware.after_model",
+          "00000000000000000000000000000006.0.716466308016948"
+        ],
+        [
+          "empty",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "__pregel_tasks",
+          "00000000000000000000000000000006.0.716466308016948"
+        ],
+        [
+          "msgpack",
+          {
+            "base64": "kceIAZOvbGFuZ2dyYXBoLnR5cGVzpFNlbmSSpXRvb2xzkYSkbmFtZat3cml0ZV90b2Rvc6RhcmdzgaV0b2Rvc5GCp2NvbnRlbnSy5pW055CG5Y6G5Y+y5pa55qGIpnN0YXR1c6ljb21wbGV0ZWSiaWSrbGVnYWN5LXBsYW6kdHlwZal0b29sX2NhbGw="
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "messages",
+          "00000000000000000000000000000007.0.3745339171999663"
+        ],
+        [
+          "empty",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "branch:to:model",
+          "00000000000000000000000000000007.0.3745339171999663"
+        ],
+        [
+          "null",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "__pregel_tasks",
+          "00000000000000000000000000000007.0.3745339171999663"
+        ],
+        [
+          "msgpack",
+          {
+            "base64": "kA=="
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "todos",
+          "00000000000000000000000000000007.0.3745339171999663"
+        ],
+        [
+          "msgpack",
+          {
+            "base64": "kYKnY29udGVudLLmlbTnkIbljoblj7LmlrnmoYimc3RhdHVzqWNvbXBsZXRlZA=="
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "messages",
+          "00000000000000000000000000000008.0.8855712919971716"
+        ],
+        [
+          "empty",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "branch:to:model",
+          "00000000000000000000000000000008.0.8855712919971716"
+        ],
+        [
+          "empty",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "branch:to:TodoListMiddleware.after_model",
+          "00000000000000000000000000000008.0.8855712919971716"
+        ],
+        [
+          "null",
+          {
+            "base64": ""
+          }
+        ]
+      ],
+      [
+        [
+          "migration-user:legacy:v1",
+          "",
+          "branch:to:TodoListMiddleware.after_model",
+          "00000000000000000000000000000009.0.8892432809038507"
+        ],
+        [
+          "empty",
+          {
+            "base64": ""
+          }
+        ]
+      ]
+    ]
+  }
+}

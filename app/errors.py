@@ -8,6 +8,7 @@ from fastapi import HTTPException, Request as FastAPIRequest
 from fastapi.exceptions import RequestValidationError
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
+from langchain_core.exceptions import ModelRefusalError
 
 try:
     from psycopg import Error as PsycopgError
@@ -62,6 +63,11 @@ def raise_thread_not_found() -> None:
 def classify_run_error(exc: Exception) -> dict[str, Any]:
     if isinstance(exc, AppError):
         return exc.to_error_info()
+
+    # DeepAgents 0.7.33+ raises explicit provider refusals. Retrying the same
+    # request will not fix a refusal, even when its text mentions a tool.
+    if isinstance(exc, ModelRefusalError):
+        return error_info(ErrorCode.MODEL_PROVIDER_FAILED, str(exc), retryable=False)
 
     module = exc.__class__.__module__.lower()
     class_name = exc.__class__.__name__.lower()

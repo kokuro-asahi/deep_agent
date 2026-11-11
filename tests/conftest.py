@@ -9,6 +9,10 @@ if str(ROOT) not in sys.path:
 
 def pytest_addoption(parser):
     parser.addoption(
+        "--agent-postgres", action="store_true", default=False,
+        help="Test legacy DeepAgents checkpoints in an isolated PostgreSQL schema.",
+    )
+    parser.addoption(
         "--auth-postgres", action="store_true", default=False,
         help="Test auth SQL against the configured PostgreSQL using an isolated temporary schema.",
     )
